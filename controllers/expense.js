@@ -1,9 +1,10 @@
 const ExpenseSchema = require("../models/expenseModel");
 
 exports.addExpense = async (req, res) => {
-  const { title, amount, category, subcategory, icon } = req.body;
+  const { email, title, amount, category, subcategory, icon } = req.body;
 
   const expense = ExpenseSchema({
+    email,
     title,
     amount,
     category,
@@ -13,7 +14,7 @@ exports.addExpense = async (req, res) => {
 
   try {
     //validations
-    if (!title || !category || !subcategory || !icon) {
+    if (!email || !title || !category || !subcategory || !icon) {
       return res.status(400).json({ message: "All fields are required!" });
     }
     if (amount <= 0 || !amount === "number") {

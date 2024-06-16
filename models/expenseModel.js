@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const ExpenseSchema = new mongoose.Schema(
   {
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      maxLength: 100,
+    },
     title: {
       type: String,
       required: true,
