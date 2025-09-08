@@ -1,21 +1,19 @@
 const express = require("express");
 const cors = require("cors");
 const { db } = require("./db/db");
-const { readdirSync, read } = require("fs");
-const { route } = require("./routes/transactions");
 const app = express();
 require("dotenv").config();
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 // middlewares
 app.use(express.json());
 app.use(cors());
 
-// routes
-readdirSync("./routes").map((route) =>
-  app.use("/api/v1", require("./routes/" + route))
-);
+// routes (explicit mounts to ensure availability across environments)
+app.use("/api/v1", require("./routes/auth"));
+app.use("/api/v1", require("./routes/expenses"));
+app.use("/api/v1", require("./routes/incomes"));
 
 const server = () => {
   db();

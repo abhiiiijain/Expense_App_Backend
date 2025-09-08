@@ -1,9 +1,9 @@
-const ExpenseSchema = require("../models/expenseModel");
+const IncomeSchema = require("../models/incomeModel");
 
-exports.addExpense = async (req, res) => {
+exports.addIncome = async (req, res) => {
   const { title, amount, category, subcategory, icon } = req.body;
 
-  const expense = ExpenseSchema({
+  const income = IncomeSchema({
     email: req.user.email,
     title,
     amount,
@@ -13,7 +13,6 @@ exports.addExpense = async (req, res) => {
   });
 
   try {
-    //validations
     if (!req.user?.email || !title || !category || !subcategory || !icon) {
       return res.status(400).json({ message: "All fields are required!" });
     }
@@ -22,31 +21,30 @@ exports.addExpense = async (req, res) => {
         .status(400)
         .json({ message: "Amount must be a positive number!" });
     }
-    await expense.save();
-    res.status(200).json({ message: "Expense Added" });
+    await income.save();
+    res.status(200).json({ message: "Income Added" });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
-
-  console.log(expense);
 };
 
-exports.getExpenses = async (req, res) => {
+exports.getIncomes = async (req, res) => {
   try {
-    const expenses = await ExpenseSchema.find({ email: req.user.email }).sort({ createdAt: -1 });
-    res.status(200).json(expenses);
+    const incomes = await IncomeSchema.find({ email: req.user.email }).sort({ createdAt: -1 });
+    res.status(200).json(incomes);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
 };
 
-exports.deleteExpense = async (req, res) => {
+exports.deleteIncome = async (req, res) => {
   const { id } = req.params;
-  ExpenseSchema.findByIdAndDelete(id)
-    .then((expense) => {
-      res.status(200).json({ message: "Expense Deleted" });
+  IncomeSchema.findByIdAndDelete(id)
+    .then(() => {
+      res.status(200).json({ message: "Income Deleted" });
     })
-    .catch((err) => {
+    .catch(() => {
       res.status(500).json({ message: "Server Error" });
     });
 };
+
