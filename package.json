@@ -2,10 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Expense app API",
-  "main": "app.js",
+  "main": "server.js",
   "scripts": {
-    "start": "nodemon app.js",
-    "start:prod": "node app.js"
+    "start": "nodemon server.js",
+    "start:prod": "node server.js"
   },
   "keywords": [],
   "author": "",

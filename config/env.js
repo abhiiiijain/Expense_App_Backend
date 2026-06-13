@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const isVercel = Boolean(process.env.VERCEL);
+
 function required(name) {
   const value = process.env[name];
   if (!value) {
@@ -16,8 +18,16 @@ function requiredNumber(name) {
   return num;
 }
 
+function optionalNumber(name) {
+  if (!process.env[name]) {
+    return null;
+  }
+  return requiredNumber(name);
+}
+
 module.exports = {
-  port: requiredNumber("PORT"),
+  isVercel,
+  port: isVercel ? optionalNumber("PORT") : requiredNumber("PORT"),
   mongoUrl: required("MONGO_URL"),
   jwtSecret: required("JWT_SECRET"),
   jwtExpiresIn: required("JWT_EXPIRES_IN"),
