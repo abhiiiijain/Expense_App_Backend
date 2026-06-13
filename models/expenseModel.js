@@ -43,4 +43,6 @@ const ExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+ExpenseSchema.index({ email: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Expense", ExpenseSchema);

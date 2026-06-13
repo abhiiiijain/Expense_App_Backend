@@ -1,25 +1,35 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const config = require("./config/env");
 const { db } = require("./db/db");
 const app = express();
-require("dotenv").config();
 
-const PORT = process.env.PORT || 5000;
+const authLimiter = rateLimit({
+  windowMs: config.authRateLimitWindowMs,
+  max: config.authRateLimitMax,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later" },
+});
 
-// middlewares
+app.use(helmet());
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: config.corsOrigin.split(",").map((origin) => origin.trim()),
+}));
 
-// routes (explicit mounts to ensure availability across environments)
-app.use("/api/v1", require("./routes/auth"));
-app.use("/api/v1", require("./routes/expenses"));
-app.use("/api/v1", require("./routes/incomes"));
+app.use(config.apiPrefix, authLimiter, require("./routes/auth"));
+app.use(config.apiPrefix, require("./routes/expenses"));
+app.use(config.apiPrefix, require("./routes/incomes"));
+app.use(config.apiPrefix, require("./routes/transactions"));
 
-const server = () => {
-  db();
-  app.listen(PORT, () => {
-    console.log("listening to port:", PORT);
+const startServer = async () => {
+  await db();
+  app.listen(config.port, () => {
+    console.log("listening to port:", config.port);
   });
 };
 
-server();
+startServer();

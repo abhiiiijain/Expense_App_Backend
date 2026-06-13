@@ -1,52 +1,9 @@
 const ExpenseSchema = require("../models/expenseModel");
+const { createTransactionController } = require("../utils/transactionController");
+const { EXPENSE_CATEGORIES } = require("../utils/validation");
 
-exports.addExpense = async (req, res) => {
-  const { title, amount, category, subcategory, icon } = req.body;
+const controller = createTransactionController(ExpenseSchema, EXPENSE_CATEGORIES);
 
-  const expense = ExpenseSchema({
-    email: req.user.email,
-    title,
-    amount,
-    category,
-    subcategory,
-    icon,
-  });
-
-  try {
-    //validations
-    if (!req.user?.email || !title || !category || !subcategory || !icon) {
-      return res.status(400).json({ message: "All fields are required!" });
-    }
-    if (amount <= 0 || !amount === "number") {
-      return res
-        .status(400)
-        .json({ message: "Amount must be a positive number!" });
-    }
-    await expense.save();
-    res.status(200).json({ message: "Expense Added" });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error" });
-  }
-
-  console.log(expense);
-};
-
-exports.getExpenses = async (req, res) => {
-  try {
-    const expenses = await ExpenseSchema.find({ email: req.user.email }).sort({ createdAt: -1 });
-    res.status(200).json(expenses);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error" });
-  }
-};
-
-exports.deleteExpense = async (req, res) => {
-  const { id } = req.params;
-  ExpenseSchema.findByIdAndDelete(id)
-    .then((expense) => {
-      res.status(200).json({ message: "Expense Deleted" });
-    })
-    .catch((err) => {
-      res.status(500).json({ message: "Server Error" });
-    });
-};
+exports.addExpense = controller.add;
+exports.getExpenses = controller.getAll;
+exports.deleteExpense = controller.delete;
