@@ -1,21 +1,13 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 const config = require("./config/env");
+const { serviceName } = require("./constants/app");
 const { connectDB } = require("./db/db");
 
 const app = express();
 
 app.set("trust proxy", 1);
-
-const authLimiter = rateLimit({
-  windowMs: config.authRateLimitWindowMs,
-  max: config.authRateLimitMax,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests, please try again later" },
-});
 
 app.use(helmet());
 app.use(express.json());
@@ -24,7 +16,7 @@ app.use(cors({
 }));
 
 app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "expense-api" });
+  res.json({ status: "ok", service: serviceName });
 });
 
 app.use(config.apiPrefix, require("./routes/keepalive"));
@@ -39,9 +31,13 @@ app.use(async (req, res, next) => {
   }
 });
 
-app.use(config.apiPrefix, authLimiter, require("./routes/auth"));
+app.use(config.apiPrefix, require("./routes/auth"));
 app.use(config.apiPrefix, require("./routes/expenses"));
 app.use(config.apiPrefix, require("./routes/incomes"));
 app.use(config.apiPrefix, require("./routes/transactions"));
+
+app.use((_req, res) => {
+  res.status(404).json({ message: "Not found" });
+});
 
 module.exports = app;

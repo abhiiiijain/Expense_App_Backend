@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const config = require("../config/env");
+const { serviceName } = require("../constants/app");
 const { getUptime } = require("../utils/uptime");
 
 const DB_STATUS = {
@@ -15,7 +16,7 @@ function getKeepalive(_req, res) {
 
   res.json({
     status: "ok",
-    service: "expense-api",
+    service: serviceName,
     runtime: config.isVercel ? "vercel" : "node",
     db: DB_STATUS[dbState] || "unknown",
     ...uptime,

@@ -15,10 +15,7 @@ module.exports = function authMiddleware(req, res, next) {
     }
 
     req.userId = payload.userId;
-    req.user = {
-      userId: payload.userId,
-      email: payload.email,
-    };
+    req.user = { email: payload.email };
 
     return next();
   } catch (err) {

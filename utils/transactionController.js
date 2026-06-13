@@ -1,4 +1,4 @@
-const { validateTransactionBody, getPagination } = require("./validation");
+const { validateTransactionBody } = require("./validation");
 
 function createTransactionController(Model, allowedCategories) {
   return {
@@ -18,21 +18,6 @@ function createTransactionController(Model, allowedCategories) {
         return res.status(201).json(record);
       } catch (err) {
         console.error(`Add ${Model.modelName} error:`, err.message);
-        return res.status(500).json({ message: "Server Error" });
-      }
-    },
-
-    getAll: async (req, res) => {
-      try {
-        const { limit, skip } = getPagination(req.query);
-        const records = await Model.find({ email: req.user.email })
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit);
-
-        return res.status(200).json(records);
-      } catch (err) {
-        console.error(`Get ${Model.modelName} error:`, err.message);
         return res.status(500).json({ message: "Server Error" });
       }
     },

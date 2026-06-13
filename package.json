@@ -1,7 +1,7 @@
 {
-  "name": "backend",
+  "name": "spendwise-api",
   "version": "1.0.0",
-  "description": "Expense app API",
+  "description": "SpendWise API",
   "main": "server.js",
   "scripts": {
     "start": "nodemon server.js",
