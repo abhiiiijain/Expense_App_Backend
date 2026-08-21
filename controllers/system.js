@@ -9,24 +9,31 @@ const DB_STATUS = {
   3: "disconnecting",
 };
 
-/**
- * Readiness probe for monitors / Render health checks.
- * Returns 503 when MongoDB is not connected.
- */
+/** Readiness probe — used by Render health checks. */
 function getHealth(_req, res) {
   const dbState = mongoose.connection.readyState;
   const healthy = dbState === 1;
 
-  const body = {
+  return res.status(healthy ? 200 : 503).json({
     status: healthy ? "ok" : "degraded",
     service: serviceName,
     checks: {
       database: DB_STATUS[dbState] || "unknown",
     },
     ...getUptime(),
-  };
-
-  return res.status(healthy ? 200 : 503).json(body);
+  });
 }
 
-module.exports = { getHealth };
+/**
+ * Lightweight liveness ping — keep free instances awake.
+ * Exposed as /keepalive and /ping (same handler).
+ */
+function getKeepalive(_req, res) {
+  return res.status(200).json({
+    status: "ok",
+    service: serviceName,
+    ...getUptime(),
+  });
+}
+
+module.exports = { getHealth, getKeepalive };

@@ -25,8 +25,10 @@ app.get("/", (_req, res) => {
   res.json({ status: "ok", service: serviceName });
 });
 
-// Liveness + readiness probes
-app.use(config.apiPrefix, require("./routes/system"));
+// Probes available under /api/* and /api/v1/*
+const systemRoutes = require("./routes/system");
+app.use("/api", systemRoutes);
+app.use(config.apiPrefix, systemRoutes);
 
 registerApiRoutes(app);
 

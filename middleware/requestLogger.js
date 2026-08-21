@@ -7,7 +7,8 @@ function isQuietPath(path) {
   return (
     QUIET_PATHS.has(path) ||
     path.endsWith("/keepalive") ||
-    path.endsWith("/health")
+    path.endsWith("/health") ||
+    path.endsWith("/ping")
   );
 }
 
