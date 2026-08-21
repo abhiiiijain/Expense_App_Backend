@@ -5,10 +5,8 @@
   "main": "server.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "start": "cross-env NODE_ENV=production node server.js",
-    "lint": "eslint .",
-    "seed:august": "cross-env NODE_ENV=development node scripts/seedAugust.js",
-    "migrate:categories": "cross-env NODE_ENV=development node scripts/migrateCategories.js"
+    "start": "node server.js",
+    "lint": "eslint ."
   },
   "keywords": [],
   "author": "",
