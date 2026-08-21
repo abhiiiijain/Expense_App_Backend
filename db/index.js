@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { mongoUrl } = require("../config/env");
+const logger = require("../utils/logger");
 
 mongoose.set("strictQuery", false);
 
@@ -17,11 +18,14 @@ async function connectDB() {
         maxPoolSize: 10,
       })
       .then((connection) => {
-        console.log("DB connected");
+        logger.info("db.connected", {
+          readyState: connection.connection.readyState,
+        });
         return connection;
       })
       .catch((error) => {
         connectionPromise = null;
+        logger.error("db.connect_failed", { err: error });
         throw error;
       });
   }

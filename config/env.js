@@ -1,11 +1,18 @@
-require("dotenv").config();
+const path = require("path");
+const dotenv = require("dotenv");
 
-const isVercel = Boolean(process.env.VERCEL);
+const nodeEnv = process.env.NODE_ENV || "development";
+const modeEnvPath = path.resolve(process.cwd(), `.env.${nodeEnv}`);
+
+// Loads .env.development or .env.production (platform env vars still win if already set)
+dotenv.config({ path: modeEnvPath });
 
 function required(name) {
   const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+  if (value === undefined || value === null || value === "") {
+    throw new Error(
+      `Missing required environment variable: ${name} (expected in .env.${nodeEnv} or process env)`
+    );
   }
   return value;
 }
@@ -18,16 +25,18 @@ function requiredNumber(name) {
   return num;
 }
 
-function optionalNumber(name) {
-  if (!process.env[name]) {
-    return null;
+const LOG_LEVELS = new Set(["debug", "info", "warn", "error"]);
+
+function requiredLogLevel() {
+  const level = required("LOG_LEVEL").toLowerCase();
+  if (!LOG_LEVELS.has(level)) {
+    throw new Error("LOG_LEVEL must be one of: debug, info, warn, error");
   }
-  return requiredNumber(name);
+  return level;
 }
 
 module.exports = {
-  isVercel,
-  port: isVercel ? optionalNumber("PORT") : requiredNumber("PORT"),
+  nodeEnv,
   mongoUrl: required("MONGO_URL"),
   jwtSecret: required("JWT_SECRET"),
   jwtExpiresIn: required("JWT_EXPIRES_IN"),
@@ -35,4 +44,6 @@ module.exports = {
   apiPrefix: required("API_PREFIX"),
   authRateLimitWindowMs: requiredNumber("AUTH_RATE_LIMIT_WINDOW_MS"),
   authRateLimitMax: requiredNumber("AUTH_RATE_LIMIT_MAX"),
+  logLevel: requiredLogLevel(),
+  requiredNumber,
 };

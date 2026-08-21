@@ -1,19 +1,20 @@
 const app = require("./app");
-const config = require("./config/env");
-const { connectDB } = require("./db/db");
+const { connectDB } = require("./db");
+const { requiredNumber, nodeEnv } = require("./config/env");
+const logger = require("./utils/logger");
 
 async function startServer() {
-  if (!config.port) {
-    throw new Error("PORT is required for local development");
-  }
+  const port = requiredNumber("PORT");
 
   await connectDB();
-  app.listen(config.port, () => {
-    console.log("listening to port:", config.port);
+
+  // Bind all interfaces for Render / container hosts
+  app.listen(port, "0.0.0.0", () => {
+    logger.info("server.started", { port, env: nodeEnv });
   });
 }
 
 startServer().catch((error) => {
-  console.error("Server failed to start:", error.message);
+  logger.error("server.start_failed", { err: error });
   process.exit(1);
 });

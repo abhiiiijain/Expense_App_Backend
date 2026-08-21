@@ -1,3 +1,20 @@
-/node_modules
+node_modules/
+
+# Secrets — never commit
 .env
-.vercel
+.env.development
+.env.production
+.env.test
+.env.local
+.env.*.local
+
+# Keep templates tracked
+!.env.development.example
+!.env.production.example
+
+logs/
+*.log
+coverage/
+.DS_Store
+dist/
+tmp/

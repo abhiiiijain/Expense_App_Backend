@@ -1,5 +1,5 @@
 const { addIncome, deleteIncome } = require("../controllers/income");
-const auth = require("../middlewares/auth");
+const auth = require("../middleware/auth");
 
 const router = require("express").Router();
 

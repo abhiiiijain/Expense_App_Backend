@@ -1,0 +1,33 @@
+# SpendWise API — Render Blueprint
+# Deploy from the backend repo root: https://render.com/docs/blueprint-spec
+#
+# After deploy, point an external monitor (e.g. cron-job.org / UptimeRobot)
+# at GET /api/v1/keepalive every 30 seconds so the free instance stays awake.
+
+services:
+  - type: web
+    name: spendwise-api
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: /api/v1
+      - key: LOG_LEVEL
+        value: info
+      - key: AUTH_RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: AUTH_RATE_LIMIT_MAX
+        value: 20
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

@@ -1,25 +1,16 @@
-const mongoose = require("mongoose");
-const config = require("../config/env");
 const { serviceName } = require("../constants/app");
 const { getUptime } = require("../utils/uptime");
 
-const DB_STATUS = {
-  0: "disconnected",
-  1: "connected",
-  2: "connecting",
-  3: "disconnecting",
-};
-
+/**
+ * Lightweight liveness ping — keep the Render free instance awake.
+ * Hit every ~30s from an external cron / uptime monitor.
+ * Does not depend on DB readiness.
+ */
 function getKeepalive(_req, res) {
-  const uptime = getUptime();
-  const dbState = mongoose.connection.readyState;
-
-  res.json({
+  return res.status(200).json({
     status: "ok",
     service: serviceName,
-    runtime: config.isVercel ? "vercel" : "node",
-    db: DB_STATUS[dbState] || "unknown",
-    ...uptime,
+    ...getUptime(),
   });
 }
 

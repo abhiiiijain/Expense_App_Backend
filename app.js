@@ -3,41 +3,58 @@ const cors = require("cors");
 const helmet = require("helmet");
 const config = require("./config/env");
 const { serviceName } = require("./constants/app");
-const { connectDB } = require("./db/db");
+const { registerApiRoutes } = require("./routes");
+const requestLogger = require("./middleware/requestLogger");
+const { HttpError } = require("./utils/HttpError");
+const logger = require("./utils/logger");
 
 const app = express();
 
 app.set("trust proxy", 1);
 
 app.use(helmet());
-app.use(express.json());
-app.use(cors({
-  origin: config.corsOrigin.split(",").map((origin) => origin.trim()),
-}));
+app.use(express.json({ limit: "100kb" }));
+app.use(
+  cors({
+    origin: config.corsOrigin.split(",").map((origin) => origin.trim()),
+  })
+);
+app.use(requestLogger);
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: serviceName });
 });
 
-app.use(config.apiPrefix, require("./routes/keepalive"));
+// Liveness + readiness probes
+app.use(config.apiPrefix, require("./routes/system"));
 
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    console.error("DB connection error:", error.message);
-    res.status(500).json({ message: "Database connection failed" });
-  }
+registerApiRoutes(app);
+
+app.use((req, res, next) => {
+  next(new HttpError(404, "Not found"));
 });
 
-app.use(config.apiPrefix, require("./routes/auth"));
-app.use(config.apiPrefix, require("./routes/expenses"));
-app.use(config.apiPrefix, require("./routes/incomes"));
-app.use(config.apiPrefix, require("./routes/transactions"));
+app.use((err, req, res, _next) => {
+  const isOperational = err instanceof HttpError;
+  const status = isOperational ? err.status : 500;
+  const message = isOperational ? err.message : "Server Error";
 
-app.use((_req, res) => {
-  res.status(404).json({ message: "Not found" });
+  if (status >= 500) {
+    logger.error("request.unhandled_error", {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      err,
+    });
+  } else if (status === 404) {
+    logger.warn("request.not_found", {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+    });
+  }
+
+  res.status(status).json({ message });
 });
 
 module.exports = app;

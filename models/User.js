@@ -27,6 +27,15 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    openingBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    openingBalanceSet: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

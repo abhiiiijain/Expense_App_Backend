@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const IncomeSchema = new mongoose.Schema(
+const ExpenseSchema = new mongoose.Schema(
   {
     email: {
       type: String,
@@ -17,11 +17,11 @@ const IncomeSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: true,
-      min: 0,
+      min: [0.01, "Amount must be greater than 0"],
     },
     type: {
       type: String,
-      default: "income",
+      default: "expense",
     },
     category: {
       type: String,
@@ -42,7 +42,6 @@ const IncomeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-IncomeSchema.index({ email: 1, createdAt: -1 });
+ExpenseSchema.index({ email: 1, createdAt: -1 });
 
-module.exports = mongoose.model("Income", IncomeSchema);
-
+module.exports = mongoose.model("Expense", ExpenseSchema);

@@ -1,5 +1,5 @@
 const { getTransactions } = require("../controllers/transactions");
-const auth = require("../middlewares/auth");
+const auth = require("../middleware/auth");
 
 const router = require("express").Router();
 

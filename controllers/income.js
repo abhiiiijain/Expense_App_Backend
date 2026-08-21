@@ -1,8 +1,12 @@
-const IncomeSchema = require("../models/incomeModel");
-const { createTransactionController } = require("../utils/transactionController");
-const { INCOME_CATEGORIES } = require("../utils/validation");
+const IncomeSchema = require("../models/Income");
+const { createTransactionController } = require("./createTransactionController");
+const { INCOME_CATEGORIES, INCOME_SUBCATEGORIES } = require("../utils/validation");
 
-const controller = createTransactionController(IncomeSchema, INCOME_CATEGORIES);
+const controller = createTransactionController(
+  IncomeSchema,
+  INCOME_CATEGORIES,
+  INCOME_SUBCATEGORIES
+);
 
 exports.addIncome = controller.add;
 exports.deleteIncome = controller.delete;

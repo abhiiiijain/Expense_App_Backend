@@ -1,5 +1,5 @@
 const { addExpense, deleteExpense } = require("../controllers/expense");
-const auth = require("../middlewares/auth");
+const auth = require("../middleware/auth");
 
 const router = require("express").Router();
 

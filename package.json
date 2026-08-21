@@ -4,8 +4,11 @@
   "description": "SpendWise API",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.js",
-    "start:prod": "node server.js"
+    "dev": "cross-env NODE_ENV=development nodemon server.js",
+    "start": "cross-env NODE_ENV=production node server.js",
+    "lint": "eslint .",
+    "seed:august": "cross-env NODE_ENV=development node scripts/seedAugust.js",
+    "migrate:categories": "cross-env NODE_ENV=development node scripts/migrateCategories.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +24,10 @@
     "mongoose": "^8.9.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
     "nodemon": "^3.1.9"
   },
   "engines": {
