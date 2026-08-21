@@ -2,11 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const config = require("./config/env");
-const { serviceName } = require("./constants/app");
 const { registerApiRoutes } = require("./routes");
 const requestLogger = require("./middleware/requestLogger");
 const { HttpError } = require("./utils/HttpError");
 const logger = require("./utils/logger");
+const { listEndpoints } = require("./controllers/root");
 
 const app = express();
 
@@ -21,9 +21,7 @@ app.use(
 );
 app.use(requestLogger);
 
-app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: serviceName });
-});
+app.get("/", listEndpoints);
 
 // Probes available under /api/* and /api/v1/*
 const systemRoutes = require("./routes/system");
