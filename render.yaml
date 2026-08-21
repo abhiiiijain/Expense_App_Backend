@@ -2,7 +2,7 @@
 # Deploy from the backend repo root: https://render.com/docs/blueprint-spec
 #
 # After deploy, point an external monitor (e.g. cron-job.org / UptimeRobot)
-# at GET /api/ping or /api/keepalive every 30 seconds so the free instance stays awake.
+# at GET /api/v1/ping every 30 seconds so the free instance stays awake.
 
 services:
   - type: web

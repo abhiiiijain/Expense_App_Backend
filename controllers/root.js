@@ -12,11 +12,8 @@ function listEndpoints(_req, res) {
     endpoints: {
       public: [
         { method: "GET", path: "/", description: "API index and uptime" },
-        { method: "GET", path: "/api/health", description: "Readiness (DB check)" },
         { method: "GET", path: `${api}/health`, description: "Readiness (DB check)" },
-        { method: "GET", path: "/api/keepalive", description: "Liveness ping" },
         { method: "GET", path: `${api}/keepalive`, description: "Liveness ping" },
-        { method: "GET", path: "/api/ping", description: "Liveness ping (alias)" },
         { method: "GET", path: `${api}/ping`, description: "Liveness ping (alias)" },
         { method: "POST", path: `${api}/auth/register`, description: "Register" },
         { method: "POST", path: `${api}/auth/login`, description: "Login" },

@@ -23,10 +23,8 @@ app.use(requestLogger);
 
 app.get("/", listEndpoints);
 
-// Probes available under /api/* and /api/v1/*
-const systemRoutes = require("./routes/system");
-app.use("/api", systemRoutes);
-app.use(config.apiPrefix, systemRoutes);
+// Health / liveness under API_PREFIX only (/api/v1)
+app.use(config.apiPrefix, require("./routes/system"));
 
 registerApiRoutes(app);
 
