@@ -1,4 +1,4 @@
-const taxonomy = require("../../shared/taxonomy.json");
+const taxonomy = require("../data/taxonomy.json");
 
 const EXPENSE_CATEGORIES = taxonomy.expenseCategories;
 const INCOME_CATEGORIES = taxonomy.incomeCategories;
@@ -72,14 +72,20 @@ function validateTransactionBody(body, userEmail, allowedCategories, subcategory
   };
 }
 
+const DEFAULT_TRANSACTION_LIMIT = 500;
+const MAX_TRANSACTION_LIMIT = 1000;
+
 function getPagination(query) {
   const skip = Math.max(parseInt(query.skip, 10) || 0, 0);
 
   if (query.limit === undefined || query.limit === "") {
-    return { limit: null, skip };
+    return { limit: DEFAULT_TRANSACTION_LIMIT, skip };
   }
 
-  const limit = Math.min(Math.max(parseInt(query.limit, 10) || 100, 1), 1000);
+  const limit = Math.min(
+    Math.max(parseInt(query.limit, 10) || DEFAULT_TRANSACTION_LIMIT, 1),
+    MAX_TRANSACTION_LIMIT
+  );
   return { limit, skip };
 }
 
@@ -104,4 +110,6 @@ module.exports = {
   validateTransactionBody,
   getPagination,
   parseOpeningBalance,
+  DEFAULT_TRANSACTION_LIMIT,
+  MAX_TRANSACTION_LIMIT,
 };

@@ -1,5 +1,5 @@
 const { EDIT_WINDOW_MS } = require("../constants/app");
-const taxonomy = require("../../shared/taxonomy.json");
+const taxonomy = require("../data/taxonomy.json");
 const asyncHandler = require("../middleware/asyncHandler");
 
 exports.getConfig = asyncHandler(async (_req, res) => {

@@ -1,7 +1,7 @@
 const { validateTransactionBody } = require("../utils/validation");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
-const { editWindowCutoff } = require("../utils/editWindow");
+const { editWindowCutoff, editWindowErrorMessage } = require("../utils/editWindow");
 
 function createTransactionController(Model, allowedCategories, subcategoryMap) {
   return {
@@ -50,10 +50,7 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
         if (!exists) {
           throw new HttpError(404, "Record not found");
         }
-        throw new HttpError(
-          403,
-          "Transactions can only be edited within 24 hours of creation"
-        );
+        throw new HttpError(403, editWindowErrorMessage("edited"));
       }
 
       return res.status(200).json(record);
@@ -72,10 +69,7 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
         if (!exists) {
           throw new HttpError(404, "Record not found");
         }
-        throw new HttpError(
-          403,
-          "Transactions can only be deleted within 24 hours of creation"
-        );
+        throw new HttpError(403, editWindowErrorMessage("deleted"));
       }
 
       return res.status(200).json({ message: `${Model.modelName} deleted` });

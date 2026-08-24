@@ -7,13 +7,8 @@ exports.getTransactions = asyncHandler(async (req, res) => {
   const { limit, skip } = getPagination(req.query);
   const filter = { email: req.user.email };
 
-  const expenseQuery = Expense.find(filter).sort({ createdAt: -1 }).skip(skip);
-  const incomeQuery = Income.find(filter).sort({ createdAt: -1 }).skip(skip);
-
-  if (limit != null) {
-    expenseQuery.limit(limit);
-    incomeQuery.limit(limit);
-  }
+  const expenseQuery = Expense.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit);
+  const incomeQuery = Income.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
   const [expenses, incomes, expenseTotal, incomeTotal] = await Promise.all([
     expenseQuery,
@@ -29,7 +24,7 @@ exports.getTransactions = asyncHandler(async (req, res) => {
       expenseTotal,
       incomeTotal,
       skip,
-      limit: limit ?? null,
+      limit,
     },
   });
 });

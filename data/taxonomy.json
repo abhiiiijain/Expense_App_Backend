@@ -1,0 +1,48 @@
+{
+  "expenseCategories": [
+    "Food & Groceries",
+    "Transport",
+    "Housing",
+    "Bills & Utilities",
+    "Shopping",
+    "Health",
+    "Entertainment",
+    "Education & Work",
+    "Personal",
+    "Finance",
+    "Family & Social",
+    "Savings & Investments",
+    "Other"
+  ],
+  "incomeCategories": [
+    "Salary",
+    "Business & Freelance",
+    "Investments",
+    "Refunds & Cashback",
+    "Gifts & Transfers",
+    "Other Income"
+  ],
+  "expenseSubcategories": {
+    "Food & Groceries": ["Groceries", "Restaurants", "Cafe & Snacks", "Food Delivery", "Milk & Dairy"],
+    "Transport": ["Fuel", "Cab & Auto", "Public Transit", "Parking", "Vehicle Maintenance"],
+    "Housing": ["Rent", "Home Maintenance", "Household Items"],
+    "Bills & Utilities": ["Electricity", "Internet", "Mobile Recharge", "Water & Gas", "DTH & Cable"],
+    "Shopping": ["Clothes", "Electronics", "Online Shopping", "Home & Decor"],
+    "Health": ["Medicines", "Doctor & Clinic", "Fitness", "Insurance (Health)"],
+    "Entertainment": ["Movies & Events", "Subscriptions", "Games", "Outing"],
+    "Education & Work": ["Courses", "Books", "Software & Tools", "Office / Co-working"],
+    "Personal": ["Salon & Grooming", "Personal Care", "Laundry"],
+    "Finance": ["Credit Card Payment", "EMI / Loan", "Bank Charges", "Insurance (Life/Other)"],
+    "Family & Social": ["Gifts", "Donations", "Family Support"],
+    "Savings & Investments": ["Savings Transfer", "Mutual Funds", "Stocks", "Fixed Deposit"],
+    "Other": ["Miscellaneous", "Petty Cash", "Uncategorized"]
+  },
+  "incomeSubcategories": {
+    "Salary": ["Monthly Salary", "Bonus", "Overtime"],
+    "Business & Freelance": ["Freelance", "Client Payment", "Business Income"],
+    "Investments": ["Dividends", "Interest", "Capital Gains"],
+    "Refunds & Cashback": ["Refund", "Cashback", "Reimbursement"],
+    "Gifts & Transfers": ["Gift Received", "Family Transfer"],
+    "Other Income": ["Rental Income", "Other"]
+  }
+}
