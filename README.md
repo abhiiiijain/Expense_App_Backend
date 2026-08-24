@@ -80,8 +80,10 @@ CORS_ORIGIN=https://spendwise-seven-alpha.vercel.app,https://spendwise.abhiiiija
 | `PUT` | `/api/v1/auth/opening-balance` | Update opening balance |
 | `GET` | `/api/v1/transactions` | List expenses & incomes |
 | `POST` | `/api/v1/add-expense` | Add expense |
+| `PUT` | `/api/v1/update-expense/:id` | Update expense |
 | `DELETE` | `/api/v1/delete-expense/:id` | Delete expense |
 | `POST` | `/api/v1/add-income` | Add income |
+| `PUT` | `/api/v1/update-income/:id` | Update income |
 | `DELETE` | `/api/v1/delete-income/:id` | Delete income |
 
 ## Deploy (Render)

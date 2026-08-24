@@ -2,8 +2,6 @@ const mongoose = require("mongoose");
 const { mongoUrl } = require("../config/env");
 const logger = require("../utils/logger");
 
-mongoose.set("strictQuery", false);
-
 let connectionPromise = null;
 
 async function connectDB() {

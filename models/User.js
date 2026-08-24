@@ -23,10 +23,6 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    photo: {
-      type: String,
-      default: "",
-    },
     openingBalance: {
       type: Number,
       default: 0,
@@ -41,4 +37,3 @@ const UserSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("User", UserSchema);
-

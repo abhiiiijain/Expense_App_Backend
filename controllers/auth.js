@@ -17,7 +17,6 @@ const formatUser = (user) => ({
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
-  photo: user.photo,
   openingBalance: user.openingBalance ?? 0,
   openingBalanceSet: Boolean(user.openingBalanceSet),
 });
@@ -89,7 +88,7 @@ exports.login = asyncHandler(async (req, res) => {
 
 exports.getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId).select(
-    "firstName lastName email photo openingBalance openingBalanceSet"
+    "firstName lastName email openingBalance openingBalanceSet"
   );
   if (!user) {
     throw new HttpError(404, "User not found");
@@ -113,7 +112,7 @@ exports.updateOpeningBalance = asyncHandler(async (req, res) => {
       openingBalanceSet: true,
     },
     { new: true }
-  ).select("firstName lastName email photo openingBalance openingBalanceSet");
+  ).select("firstName lastName email openingBalance openingBalanceSet");
 
   if (!user) {
     throw new HttpError(404, "User not found");

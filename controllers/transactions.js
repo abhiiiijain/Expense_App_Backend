@@ -15,7 +15,21 @@ exports.getTransactions = asyncHandler(async (req, res) => {
     incomeQuery.limit(limit);
   }
 
-  const [expenses, incomes] = await Promise.all([expenseQuery, incomeQuery]);
+  const [expenses, incomes, expenseTotal, incomeTotal] = await Promise.all([
+    expenseQuery,
+    incomeQuery,
+    Expense.countDocuments(filter),
+    Income.countDocuments(filter),
+  ]);
 
-  return res.status(200).json({ expenses, incomes });
+  return res.status(200).json({
+    expenses,
+    incomes,
+    meta: {
+      expenseTotal,
+      incomeTotal,
+      skip,
+      limit: limit ?? null,
+    },
+  });
 });

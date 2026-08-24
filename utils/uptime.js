@@ -26,7 +26,6 @@ function getUptime() {
     liveSince: new Date(startedAt).toISOString(),
     uptimeSeconds,
     uptime: formatUptime(parts),
-    uptimeParts: parts,
   };
 }
 

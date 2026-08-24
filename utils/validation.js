@@ -1,59 +1,27 @@
-const EXPENSE_CATEGORIES = [
-  "Food & Groceries",
-  "Transport",
-  "Housing",
-  "Bills & Utilities",
-  "Shopping",
-  "Health",
-  "Entertainment",
-  "Education & Work",
-  "Personal",
-  "Finance",
-  "Family & Social",
-  "Savings & Investments",
-  "Other",
-];
+const taxonomy = require("../../shared/taxonomy.json");
 
-const INCOME_CATEGORIES = [
-  "Salary",
-  "Business & Freelance",
-  "Investments",
-  "Refunds & Cashback",
-  "Gifts & Transfers",
-  "Other Income",
-];
+const EXPENSE_CATEGORIES = taxonomy.expenseCategories;
+const INCOME_CATEGORIES = taxonomy.incomeCategories;
+const EXPENSE_SUBCATEGORIES = taxonomy.expenseSubcategories;
+const INCOME_SUBCATEGORIES = taxonomy.incomeSubcategories;
 
-const EXPENSE_SUBCATEGORIES = {
-  "Food & Groceries": ["Groceries", "Restaurants", "Cafe & Snacks", "Food Delivery", "Milk & Dairy"],
-  Transport: ["Fuel", "Cab & Auto", "Public Transit", "Parking", "Vehicle Maintenance"],
-  Housing: ["Rent", "Home Maintenance", "Household Items"],
-  "Bills & Utilities": ["Electricity", "Internet", "Mobile Recharge", "Water & Gas", "DTH & Cable"],
-  Shopping: ["Clothes", "Electronics", "Online Shopping", "Home & Decor"],
-  Health: ["Medicines", "Doctor & Clinic", "Fitness", "Insurance (Health)"],
-  Entertainment: ["Movies & Events", "Subscriptions", "Games", "Outing"],
-  "Education & Work": ["Courses", "Books", "Software & Tools", "Office / Co-working"],
-  Personal: ["Salon & Grooming", "Personal Care", "Laundry"],
-  Finance: ["Credit Card Payment", "EMI / Loan", "Bank Charges", "Insurance (Life/Other)"],
-  "Family & Social": ["Gifts", "Donations", "Family Support"],
-  "Savings & Investments": ["Savings Transfer", "Mutual Funds", "Stocks", "Fixed Deposit"],
-  Other: ["Miscellaneous", "Petty Cash", "Uncategorized"],
-};
+const TITLE_MAX_LENGTH = 50;
+const SUBCATEGORY_MAX_LENGTH = 50;
 
-const INCOME_SUBCATEGORIES = {
-  Salary: ["Monthly Salary", "Bonus", "Overtime"],
-  "Business & Freelance": ["Freelance", "Client Payment", "Business Income"],
-  Investments: ["Dividends", "Interest", "Capital Gains"],
-  "Refunds & Cashback": ["Refund", "Cashback", "Reimbursement"],
-  "Gifts & Transfers": ["Gift Received", "Family Transfer"],
-  "Other Income": ["Rental Income", "Other"],
-};
-
-function parseAmount(amount) {
-  const num = Number(amount);
-  if (!Number.isFinite(num) || num <= 0) {
+function roundMoney(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
     return null;
   }
-  return num;
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+function parseAmount(amount) {
+  const rounded = roundMoney(amount);
+  if (rounded === null || rounded <= 0) {
+    return null;
+  }
+  return rounded;
 }
 
 function validateTransactionBody(body, userEmail, allowedCategories, subcategoryMap) {
@@ -61,6 +29,21 @@ function validateTransactionBody(body, userEmail, allowedCategories, subcategory
 
   if (!userEmail || !title || !category || !subcategory || !icon) {
     return { error: "All fields are required!" };
+  }
+
+  const trimmedTitle = title.trim();
+  const trimmedSubcategory = subcategory.trim();
+
+  if (!trimmedTitle) {
+    return { error: "All fields are required!" };
+  }
+
+  if (trimmedTitle.length > TITLE_MAX_LENGTH) {
+    return { error: `Title must be at most ${TITLE_MAX_LENGTH} characters` };
+  }
+
+  if (trimmedSubcategory.length > SUBCATEGORY_MAX_LENGTH) {
+    return { error: `Subcategory must be at most ${SUBCATEGORY_MAX_LENGTH} characters` };
   }
 
   if (!allowedCategories.includes(category)) {
@@ -80,10 +63,10 @@ function validateTransactionBody(body, userEmail, allowedCategories, subcategory
   return {
     data: {
       email: userEmail,
-      title: title.trim(),
+      title: trimmedTitle,
       amount: parsedAmount,
       category,
-      subcategory,
+      subcategory: trimmedSubcategory,
       icon,
     },
   };
@@ -105,12 +88,12 @@ function parseOpeningBalance(value) {
     return { amount: null };
   }
 
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  const rounded = roundMoney(value);
+  if (rounded === null || rounded < 0) {
     return { error: "Opening balance must be a valid amount" };
   }
 
-  return { amount: parsed };
+  return { amount: rounded };
 }
 
 module.exports = {
