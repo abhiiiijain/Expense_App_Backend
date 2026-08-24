@@ -24,11 +24,8 @@ function getHealth(_req, res) {
   });
 }
 
-/**
- * Lightweight liveness ping — keep free instances awake.
- * Exposed as /keepalive and /ping (same handler).
- */
-function getKeepalive(_req, res) {
+/** Lightweight liveness ping — keep free instances awake. */
+function getPing(_req, res) {
   return res.status(200).json({
     status: "ok",
     service: serviceName,
@@ -36,4 +33,4 @@ function getKeepalive(_req, res) {
   });
 }
 
-module.exports = { getHealth, getKeepalive };
+module.exports = { getHealth, getPing };

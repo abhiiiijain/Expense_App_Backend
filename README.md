@@ -68,7 +68,7 @@ CORS_ORIGIN=https://spendwise-seven-alpha.vercel.app,https://spendwise.abhiiiija
 |--------|------|-------------|
 | `GET` | `/` | API index + uptime |
 | `GET` | `/api/v1/health` | Readiness (includes DB status) |
-| `GET` | `/api/v1/keepalive` or `/api/v1/ping` | Liveness ping |
+| `GET` | `/api/v1/ping` | Liveness ping |
 | `POST` | `/api/v1/auth/register` | Register |
 | `POST` | `/api/v1/auth/login` | Login |
 
