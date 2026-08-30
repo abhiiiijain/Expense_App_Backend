@@ -57,6 +57,25 @@ CORS_ORIGIN=https://spendwise-seven-alpha.vercel.app,https://spendwise.abhiiiija
 | `npm run dev` | Nodemon with `.env.development` |
 | `npm start` | Production server (`node server.js`) |
 | `npm run lint` | ESLint |
+| `npm run backup` | Export expenses/incomes/users JSON to `./backups/` |
+
+## Data durability
+
+### Ownership (`userId`)
+Expenses and incomes are owned by `userId` (User `_id`), not email. Changing a user’s email later does not orphan transactions.
+
+### Local JSON backup
+```bash
+NODE_ENV=development npm run backup
+```
+Writes `backups/<timestamp>/spendwise-backup.json` (gitignored).
+
+### MongoDB Atlas (recommended for production)
+1. Atlas → your cluster → **Backup** — enable continuous / cloud backup if available on your plan.
+2. Keep a second Atlas user with read-only access for exports.
+3. Connection string should include `retryWrites=true&w=majority` (Atlas default).
+4. Network access: prefer locked IPs; if using Render free tier, `0.0.0.0/0` is common but rotate DB password if leaked.
+5. Do **not** commit `.env.*` files with real credentials.
 
 ## API overview
 

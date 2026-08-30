@@ -1,4 +1,5 @@
 const taxonomy = require("../data/taxonomy.json");
+const mongoose = require("mongoose");
 
 const EXPENSE_CATEGORIES = taxonomy.expenseCategories;
 const INCOME_CATEGORIES = taxonomy.incomeCategories;
@@ -24,11 +25,27 @@ function parseAmount(amount) {
   return rounded;
 }
 
-function validateTransactionBody(body, userEmail, allowedCategories, subcategoryMap) {
-  const { title, amount, category, subcategory, icon } = body;
+function parseTransactionDate(value) {
+  if (value === undefined || value === null || value === "") {
+    return { date: new Date() };
+  }
 
-  if (!userEmail || !title || !category || !subcategory || !icon) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return { error: "Invalid transaction date" };
+  }
+  return { date };
+}
+
+function validateTransactionBody(body, userId, allowedCategories, subcategoryMap) {
+  const { title, amount, category, subcategory, icon, date, accountId } = body;
+
+  if (!userId || !title || !category || !subcategory || !icon || !accountId) {
     return { error: "All fields are required!" };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(accountId)) {
+    return { error: "Invalid account" };
   }
 
   const trimmedTitle = title.trim();
@@ -60,11 +77,18 @@ function validateTransactionBody(body, userEmail, allowedCategories, subcategory
     return { error: "Amount must be a positive number!" };
   }
 
+  const dateResult = parseTransactionDate(date);
+  if (dateResult.error) {
+    return { error: dateResult.error };
+  }
+
   return {
     data: {
-      email: userEmail,
+      userId,
+      accountId,
       title: trimmedTitle,
       amount: parsedAmount,
+      date: dateResult.date,
       category,
       subcategory: trimmedSubcategory,
       icon,
@@ -89,6 +113,30 @@ function getPagination(query) {
   return { limit, skip };
 }
 
+/** Parse YYYY-MM into inclusive UTC month range. */
+function getMonthRange(monthKey) {
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+    return null;
+  }
+  const [year, month] = monthKey.split("-").map(Number);
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  return { start, end };
+}
+
+/** Rolling local-time window: last N calendar days including today. */
+function getRecentDaysRange(daysParam) {
+  const days = parseInt(daysParam, 10);
+  if (!Number.isFinite(days) || days < 1 || days > 366) {
+    return null;
+  }
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  return { start };
+}
+
 function parseOpeningBalance(value) {
   if (value === undefined || value === null || value === "") {
     return { amount: null };
@@ -108,8 +156,10 @@ module.exports = {
   EXPENSE_SUBCATEGORIES,
   INCOME_SUBCATEGORIES,
   validateTransactionBody,
+  parseTransactionDate,
   getPagination,
+  getMonthRange,
+  getRecentDaysRange,
   parseOpeningBalance,
-  DEFAULT_TRANSACTION_LIMIT,
-  MAX_TRANSACTION_LIMIT,
+  roundMoney,
 };

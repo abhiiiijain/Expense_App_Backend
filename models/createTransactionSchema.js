@@ -3,11 +3,17 @@ const mongoose = require("mongoose");
 function createTransactionSchema() {
   const schema = new mongoose.Schema(
     {
-      email: {
-        type: String,
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
         required: true,
-        trim: true,
-        maxLength: 100,
+        index: true,
+      },
+      accountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Account",
+        required: true,
+        index: true,
       },
       title: {
         type: String,
@@ -19,6 +25,12 @@ function createTransactionSchema() {
         type: Number,
         required: true,
         min: [0.01, "Amount must be greater than 0"],
+      },
+      /** Calendar date used for month views / grouping (independent of createdAt). */
+      date: {
+        type: Date,
+        required: true,
+        index: true,
       },
       category: {
         type: String,
@@ -39,7 +51,10 @@ function createTransactionSchema() {
     { timestamps: true }
   );
 
-  schema.index({ email: 1, createdAt: -1 });
+  schema.index({ userId: 1, date: -1 });
+  schema.index({ userId: 1, accountId: 1, date: -1 });
+  schema.index({ userId: 1, createdAt: -1 });
+
   return schema;
 }
 

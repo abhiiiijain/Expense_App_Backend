@@ -11,12 +11,11 @@ module.exports = function authMiddleware(req, _res, next) {
     }
 
     const payload = jwt.verify(token, jwtSecret);
-    if (!payload.userId || !payload.email) {
+    if (!payload.userId) {
       throw new HttpError(401, "Invalid token");
     }
 
     req.userId = payload.userId;
-    req.user = { email: payload.email };
 
     return next();
   } catch (err) {

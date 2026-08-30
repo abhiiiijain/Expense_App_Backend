@@ -23,11 +23,14 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    /**
+     * @deprecated Amount lives on Account. Kept only to migrate existing rows.
+     */
     openingBalance: {
       type: Number,
-      default: 0,
       min: 0,
     },
+    /** Onboarding flag — whether the user confirmed an opening balance. */
     openingBalanceSet: {
       type: Boolean,
       default: false,

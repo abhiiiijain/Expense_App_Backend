@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon server.js",
     "start": "node server.js",
+    "backup": "node scripts/backup.js",
+    "backfill": "node scripts/backfill-accounts-dates.js",
     "lint": "eslint ."
   },
   "keywords": [],

@@ -23,8 +23,6 @@ function editWindowCutoff(now = Date.now()) {
 }
 
 module.exports = {
-  EDIT_WINDOW_MS,
-  formatEditWindowLabel,
   editWindowErrorMessage,
   editWindowCutoff,
 };
