@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Account = require("../models/Account");
 const { jwtSecret, jwtExpiresIn } = require("../config/env");
 const { parseOpeningBalance } = require("../utils/validation");
 const { HttpError } = require("../utils/HttpError");
@@ -25,15 +26,19 @@ const formatUser = (user, account) => ({
 async function withDefaultAccount(user, openingBalance = 0) {
   const account = await ensureDefaultAccount(user._id, openingBalance);
 
-  // One-time migrate legacy user.openingBalance → default account when still unset on account.
+  // Legacy user.openingBalance → Account (once). Never overwrite if any account
+  // already has an opening — that caused HDFC to inherit SBI's balance when it
+  // became the default with opening 0.
   const legacy = user.openingBalance;
-  if (
-    typeof legacy === "number" &&
-    legacy > 0 &&
-    (!account.openingBalance || account.openingBalance === 0)
-  ) {
-    account.openingBalance = legacy;
-    await account.save();
+  if (typeof legacy === "number" && legacy > 0) {
+    const alreadyHasOpening = await Account.exists({
+      userId: user._id,
+      openingBalance: { $gt: 0 },
+    });
+    if (!alreadyHasOpening && !(account.openingBalance > 0)) {
+      account.openingBalance = legacy;
+      await account.save();
+    }
     await User.updateOne({ _id: user._id }, { $unset: { openingBalance: 1 } });
   }
 
