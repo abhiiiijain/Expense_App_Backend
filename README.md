@@ -79,15 +79,16 @@ Writes `backups/<timestamp>/spendwise-backup.json` (gitignored).
 
 ## API overview
 
-`GET /` returns service status, uptime, and the full endpoint list.
+`GET /` returns service status and uptime.
 
 ### Public
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | API index + uptime |
+| `GET` | `/` | Status + uptime |
 | `GET` | `/api/v1/health` | Readiness (includes DB status) |
 | `GET` | `/api/v1/ping` | Liveness ping |
+| `GET` | `/api/v1/keepalive` | Keep-alive target for the internal job |
 | `POST` | `/api/v1/auth/register` | Register |
 | `POST` | `/api/v1/auth/login` | Login |
 
@@ -116,11 +117,23 @@ Writes `backups/<timestamp>/spendwise-backup.json` (gitignored).
 
 ### Keep free tier awake
 
-Ping every ~30 seconds (UptimeRobot, cron-job.org, etc.):
+On Render, the API starts an **internal job** that `GET`s its own public URL:
 
 ```text
-GET https://expense-app-backend-srz0.onrender.com/api/v1/ping
+GET {RENDER_EXTERNAL_URL}/api/v1/keepalive
 ```
+
+every 10 minutes by default (`KEEP_ALIVE_INTERVAL_MS=600000`). That keeps the free instance from idle-sleeping while the process is running.
+
+Optional env vars:
+
+| Variable | Default | Notes |
+|----------|---------|--------|
+| `KEEP_ALIVE_ENABLED` | `true` when `RENDER_EXTERNAL_URL` is set | Set `false` to disable |
+| `KEEP_ALIVE_INTERVAL_MS` | `600000` | Min 30000 |
+| `KEEP_ALIVE_URL` | `{RENDER_EXTERNAL_URL}{API_PREFIX}/keepalive` | Override if needed |
+
+Note: this cannot wake an instance that is already asleep; the first visitor after sleep still pays cold-start cost.
 
 Blueprint reference: `render.yaml`.
 
@@ -128,9 +141,10 @@ Blueprint reference: `render.yaml`.
 
 ```text
 app.js                 Express app
-server.js              Process entry (listen + DB connect)
+server.js              Process entry (listen + DB connect + keep-alive job)
 config/env.js          Mode-based env loading
 controllers/           Route handlers
+jobs/                  Background jobs (keep-alive)
 middleware/            Auth, rate limit, logging, asyncHandler
 models/                Mongoose models
 routes/                Route modules

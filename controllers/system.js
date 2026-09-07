@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const { serviceName } = require("../constants/app");
 const { getUptime } = require("../utils/uptime");
+const { okStatus } = require("../utils/serviceStatus");
 
 const DB_STATUS = {
   0: "disconnected",
@@ -24,13 +25,14 @@ function getHealth(_req, res) {
   });
 }
 
-/** Lightweight liveness ping — keep free instances awake. */
+/** Lightweight liveness (also used for GET /). */
 function getPing(_req, res) {
-  return res.status(200).json({
-    status: "ok",
-    service: serviceName,
-    ...getUptime(),
-  });
+  return res.status(200).json(okStatus());
 }
 
-module.exports = { getHealth, getPing };
+/** Keep-alive target for the internal job. */
+function getKeepAlive(_req, res) {
+  return res.status(200).json(okStatus({ keepalive: true }));
+}
+
+module.exports = { getHealth, getPing, getKeepAlive };

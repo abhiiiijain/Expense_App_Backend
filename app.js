@@ -6,7 +6,7 @@ const { registerApiRoutes } = require("./routes");
 const requestLogger = require("./middleware/requestLogger");
 const { HttpError } = require("./utils/HttpError");
 const logger = require("./utils/logger");
-const { listEndpoints } = require("./controllers/root");
+const { getPing } = require("./controllers/system");
 
 const app = express();
 
@@ -21,7 +21,7 @@ app.use(
 );
 app.use(requestLogger);
 
-app.get("/", listEndpoints);
+app.get("/", getPing);
 
 // Health / liveness under API_PREFIX only (/api/v1)
 app.use(config.apiPrefix, require("./routes/system"));
@@ -37,18 +37,13 @@ app.use((err, req, res, _next) => {
   const status = isOperational ? err.status : 500;
   const message = isOperational ? err.message : "Server Error";
 
+  // 4xx already logged by requestLogger; only add stack for unexpected 5xx
   if (status >= 500) {
     logger.error("request.unhandled_error", {
       requestId: req.requestId,
       method: req.method,
       path: req.originalUrl,
       err,
-    });
-  } else if (status === 404) {
-    logger.warn("request.not_found", {
-      requestId: req.requestId,
-      method: req.method,
-      path: req.originalUrl,
     });
   }
 

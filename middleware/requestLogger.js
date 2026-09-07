@@ -7,7 +7,8 @@ function isQuietPath(path) {
   return (
     QUIET_PATHS.has(path) ||
     path.endsWith("/health") ||
-    path.endsWith("/ping")
+    path.endsWith("/ping") ||
+    path.endsWith("/keepalive")
   );
 }
 
@@ -33,9 +34,12 @@ function requestLogger(req, res, next) {
       payload.userId = req.userId;
     }
 
+    // 5xx: error middleware logs with stack — skip duplicate here
     if (res.statusCode >= 500) {
-      logger.error("request.completed", payload);
-    } else if (res.statusCode >= 400) {
+      return;
+    }
+
+    if (res.statusCode >= 400) {
       logger.warn("request.completed", payload);
     } else if (isQuietPath(path)) {
       logger.debug("request.completed", payload);

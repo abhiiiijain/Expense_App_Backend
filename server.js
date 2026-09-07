@@ -1,6 +1,7 @@
 const app = require("./app");
 const { connectDB } = require("./db");
-const { requiredNumber, nodeEnv } = require("./config/env");
+const { apiPrefix, requiredNumber, nodeEnv } = require("./config/env");
+const { startKeepAliveJob } = require("./jobs/keepAlive");
 const logger = require("./utils/logger");
 
 async function startServer() {
@@ -11,6 +12,7 @@ async function startServer() {
   // Bind all interfaces for Render / container hosts
   app.listen(port, "0.0.0.0", () => {
     logger.info("server.started", { port, env: nodeEnv });
+    startKeepAliveJob({ apiPrefix });
   });
 }
 
