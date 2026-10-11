@@ -6,19 +6,16 @@ const TransferSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     fromAccountId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Account",
       required: true,
-      index: true,
     },
     toAccountId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Account",
       required: true,
-      index: true,
     },
     amount: {
       type: Number,
@@ -34,14 +31,13 @@ const TransferSchema = new mongoose.Schema(
     date: {
       type: Date,
       required: true,
-      index: true,
     },
   },
   { timestamps: true }
 );
 
-TransferSchema.index({ userId: 1, date: -1 });
-TransferSchema.index({ userId: 1, fromAccountId: 1, date: -1 });
-TransferSchema.index({ userId: 1, toAccountId: 1, date: -1 });
+TransferSchema.index({ userId: 1, date: -1, createdAt: -1 });
+TransferSchema.index({ userId: 1, fromAccountId: 1, date: -1, createdAt: -1 });
+TransferSchema.index({ userId: 1, toAccountId: 1, date: -1, createdAt: -1 });
 
 module.exports = mongoose.model("Transfer", TransferSchema);

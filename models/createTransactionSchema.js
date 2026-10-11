@@ -7,13 +7,11 @@ function createTransactionSchema() {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-        index: true,
       },
       accountId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Account",
         required: true,
-        index: true,
       },
       title: {
         type: String,
@@ -30,7 +28,6 @@ function createTransactionSchema() {
       date: {
         type: Date,
         required: true,
-        index: true,
       },
       category: {
         type: String,
@@ -51,9 +48,9 @@ function createTransactionSchema() {
     { timestamps: true }
   );
 
-  schema.index({ userId: 1, date: -1 });
-  schema.index({ userId: 1, accountId: 1, date: -1 });
-  schema.index({ userId: 1, createdAt: -1 });
+  // Month lists: equality on userId, range + sort on date, tie-break on createdAt.
+  schema.index({ userId: 1, date: -1, createdAt: -1 });
+  schema.index({ userId: 1, accountId: 1, date: -1, createdAt: -1 });
 
   return schema;
 }
