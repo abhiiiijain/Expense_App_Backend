@@ -4,11 +4,11 @@ const {
   updateAccount,
   deleteAccount,
 } = require("../controllers/accounts");
-const auth = require("../middleware/auth");
+const protect = require("../middleware/protect");
 
 const router = require("express").Router();
 
-router.use(auth);
+router.use(protect);
 router.get("/accounts", listAccounts);
 router.post("/accounts", createAccount);
 router.put("/accounts/:id", updateAccount);

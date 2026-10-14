@@ -25,7 +25,11 @@ function sanitize(meta) {
 
   delete clone.password;
   delete clone.passwordHash;
+  delete clone.pin;
+  delete clone.currentPin;
+  delete clone.pinHash;
   delete clone.token;
+  delete clone.appSession;
   delete clone.authorization;
 
   return clone;

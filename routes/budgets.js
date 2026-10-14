@@ -1,9 +1,9 @@
 const { listBudgets, upsertBudget } = require("../controllers/budgets");
-const auth = require("../middleware/auth");
+const protect = require("../middleware/protect");
 
 const router = require("express").Router();
 
-router.use(auth);
+router.use(protect);
 router.get("/budgets", listBudgets);
 router.put("/budgets", upsertBudget);
 

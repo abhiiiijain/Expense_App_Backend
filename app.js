@@ -47,7 +47,11 @@ app.use((err, req, res, _next) => {
     });
   }
 
-  res.status(status).json({ message });
+  const body = { message };
+  if (isOperational && err.code) {
+    body.code = err.code;
+  }
+  res.status(status).json(body);
 });
 
 module.exports = app;

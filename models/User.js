@@ -23,6 +23,15 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    /** bcrypt hash of the 4-digit app PIN. Never returned in API responses. */
+    pinHash: {
+      type: String,
+      select: false,
+    },
+    pinSet: {
+      type: Boolean,
+      default: false,
+    },
     /**
      * @deprecated Amount lives on Account. Kept only to migrate existing rows.
      */

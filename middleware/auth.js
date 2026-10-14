@@ -11,7 +11,7 @@ module.exports = function authMiddleware(req, _res, next) {
     }
 
     const payload = jwt.verify(token, jwtSecret);
-    if (!payload.userId) {
+    if (!payload.userId || payload.typ === "app") {
       throw new HttpError(401, "Invalid token");
     }
 

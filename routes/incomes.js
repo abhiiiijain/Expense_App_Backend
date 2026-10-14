@@ -1,7 +1,7 @@
 const Income = require("../models/Income");
 const { createTransactionController } = require("../controllers/createTransactionController");
 const { INCOME_CATEGORIES, INCOME_SUBCATEGORIES } = require("../utils/validation");
-const auth = require("../middleware/auth");
+const protect = require("../middleware/protect");
 
 const router = require("express").Router();
 const controller = createTransactionController(
@@ -10,7 +10,7 @@ const controller = createTransactionController(
   INCOME_SUBCATEGORIES
 );
 
-router.use(auth);
+router.use(protect);
 router.post("/add-income", controller.add);
 router.put("/update-income/:id", controller.update);
 router.delete("/delete-income/:id", controller.delete);

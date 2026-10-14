@@ -21,6 +21,7 @@ const formatUser = (user, account) => ({
   email: user.email,
   openingBalance: account?.openingBalance ?? 0,
   openingBalanceSet: Boolean(user.openingBalanceSet),
+  pinSet: Boolean(user.pinSet),
 });
 
 async function withDefaultAccount(user, openingBalance = 0) {
@@ -115,7 +116,7 @@ exports.login = asyncHandler(async (req, res) => {
 
 exports.getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId).select(
-    "firstName lastName email openingBalance openingBalanceSet"
+    "firstName lastName email openingBalance openingBalanceSet pinSet"
   );
   if (!user) {
     throw new HttpError(404, "User not found");
