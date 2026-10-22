@@ -31,6 +31,9 @@ function sanitize(meta) {
   delete clone.token;
   delete clone.appSession;
   delete clone.authorization;
+  delete clone.attestationObject;
+  delete clone.clientDataJSON;
+  delete clone.publicKey;
 
   return clone;
 }

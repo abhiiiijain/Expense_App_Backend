@@ -1,32 +1,16 @@
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const { jwtSecret } = require("../config/env");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
-const {
-  PIN_LENGTH,
-  APP_SESSION_TTL_SEC,
-  PIN_MAX_ATTEMPTS,
-  PIN_LOCKOUT_MS,
-} = require("../constants/app");
+const { issueAppSession } = require("../utils/appSessionToken");
+const { PIN_LENGTH, PIN_PATTERN, PIN_MAX_ATTEMPTS, PIN_LOCKOUT_MS } = require("../constants/app");
 
 const attempts = new Map();
 
-function pinPattern() {
-  return new RegExp(`^\\d{${PIN_LENGTH}}$`);
-}
-
 function assertPinFormat(pin) {
-  if (!pinPattern().test(String(pin || ""))) {
+  if (!PIN_PATTERN.test(String(pin || ""))) {
     throw new HttpError(400, `PIN must be ${PIN_LENGTH} digits`);
   }
-}
-
-function issueAppSession(userId) {
-  return jwt.sign({ userId: String(userId), typ: "app" }, jwtSecret, {
-    expiresIn: APP_SESSION_TTL_SEC,
-  });
 }
 
 function attemptKey(userId) {

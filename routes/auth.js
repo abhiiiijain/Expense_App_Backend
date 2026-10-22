@@ -7,6 +7,13 @@ const {
   changeEmail,
 } = require("../controllers/auth");
 const { setupPin, verifyPin, refreshAppSession, changePin, resetPin } = require("../controllers/pin");
+const {
+  registerOptions,
+  registerCredential,
+  authenticateOptions,
+  authenticateCredential,
+  removeCredentials,
+} = require("../controllers/webauthn");
 const router = require("express").Router();
 const auth = require("../middleware/auth");
 const requireAppSession = require("../middleware/appSession");
@@ -23,5 +30,10 @@ router.post("/auth/pin/verify", auth, authLimiter, verifyPin);
 router.post("/auth/pin/refresh", auth, requireAppSession, refreshAppSession);
 router.put("/auth/pin", auth, authLimiter, changePin);
 router.post("/auth/pin/reset", auth, authLimiter, resetPin);
+router.post("/auth/webauthn/register/options", auth, requireAppSession, registerOptions);
+router.post("/auth/webauthn/register", auth, requireAppSession, registerCredential);
+router.post("/auth/webauthn/authenticate/options", auth, authLimiter, authenticateOptions);
+router.post("/auth/webauthn/authenticate", auth, authLimiter, authenticateCredential);
+router.delete("/auth/webauthn", auth, requireAppSession, removeCredentials);
 
 module.exports = router;

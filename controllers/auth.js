@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Account = require("../models/Account");
 const { jwtSecret, jwtExpiresIn } = require("../config/env");
+const { rpIdFromRequest } = require("../utils/clientOrigin");
 const { parseOpeningBalance } = require("../utils/validation");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -14,15 +15,23 @@ const generateToken = (userId, email) => {
   return jwt.sign({ userId, email }, jwtSecret, { expiresIn: jwtExpiresIn });
 };
 
-const formatUser = (user, account) => ({
-  id: user._id,
-  firstName: user.firstName,
-  lastName: user.lastName,
-  email: user.email,
-  openingBalance: account?.openingBalance ?? 0,
-  openingBalanceSet: Boolean(user.openingBalanceSet),
-  pinSet: Boolean(user.pinSet),
-});
+const formatUser = (user, account, req) => {
+  const rpId = req ? rpIdFromRequest(req) : null;
+  return {
+    id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    openingBalance: account?.openingBalance ?? 0,
+    openingBalanceSet: Boolean(user.openingBalanceSet),
+    pinSet: Boolean(user.pinSet),
+    biometricEnabled: Boolean(
+      rpId &&
+        Array.isArray(user.webauthnCredentials) &&
+        user.webauthnCredentials.some((credential) => credential.rpId === rpId)
+    ),
+  };
+};
 
 async function withDefaultAccount(user, openingBalance = 0) {
   const account = await ensureDefaultAccount(user._id, openingBalance);
@@ -85,7 +94,7 @@ exports.register = asyncHandler(async (req, res) => {
   const token = generateToken(user._id.toString(), user.email);
   return res.status(201).json({
     token,
-    user: formatUser(user, account),
+    user: formatUser(user, account, req),
   });
 });
 
@@ -110,19 +119,19 @@ exports.login = asyncHandler(async (req, res) => {
   const token = generateToken(user._id.toString(), user.email);
   return res.status(200).json({
     token,
-    user: formatUser(user, account),
+    user: formatUser(user, account, req),
   });
 });
 
 exports.getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId).select(
-    "firstName lastName email openingBalance openingBalanceSet pinSet"
+    "firstName lastName email openingBalance openingBalanceSet pinSet webauthnCredentials.rpId"
   );
   if (!user) {
     throw new HttpError(404, "User not found");
   }
   const account = await withDefaultAccount(user, user.openingBalance ?? 0);
-  return res.status(200).json(formatUser(user, account));
+  return res.status(200).json(formatUser(user, account, req));
 });
 
 exports.updateOpeningBalance = asyncHandler(async (req, res) => {
@@ -147,7 +156,7 @@ exports.updateOpeningBalance = asyncHandler(async (req, res) => {
   account.openingBalance = openingResult.amount;
   await account.save();
 
-  return res.status(200).json(formatUser(user, account));
+  return res.status(200).json(formatUser(user, account, req));
 });
 
 exports.changePassword = asyncHandler(async (req, res) => {
@@ -204,7 +213,7 @@ exports.changeEmail = asyncHandler(async (req, res) => {
   if (email === user.email) {
     return res.status(200).json({
       token: generateToken(user._id.toString(), user.email),
-      user: formatUser(user, account),
+      user: formatUser(user, account, req),
     });
   }
 
@@ -219,6 +228,6 @@ exports.changeEmail = asyncHandler(async (req, res) => {
   const token = generateToken(user._id.toString(), user.email);
   return res.status(200).json({
     token,
-    user: formatUser(user, account),
+    user: formatUser(user, account, req),
   });
 });

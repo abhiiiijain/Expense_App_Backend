@@ -32,6 +32,20 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /** Platform authenticators (fingerprint / Face ID / Windows Hello) for app unlock. */
+    webauthnCredentials: {
+      type: [
+        {
+          credentialId: { type: String, required: true },
+          publicKey: { type: String, required: true },
+          counter: { type: Number, default: 0 },
+          transports: { type: [String], default: [] },
+          rpId: { type: String, required: true },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     /**
      * @deprecated Amount lives on Account. Kept only to migrate existing rows.
      */
