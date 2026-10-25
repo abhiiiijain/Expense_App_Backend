@@ -5,6 +5,7 @@ const { editWindowCutoff, editWindowErrorMessage } = require("../utils/editWindo
 const { assertAccountOwned } = require("../utils/accountAccess");
 const Account = require("../models/Account");
 const { CARD_PAYMENT_SUBCATEGORY } = require("../utils/creditCardPayments");
+const { bumpDataVersion } = require("../utils/dataVersion");
 const mongoose = require("mongoose");
 
 async function withSettlesAccount(userId, data) {
@@ -55,6 +56,7 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
       const payload = await withSettlesAccount(req.userId, result.data);
 
       const record = await Model.create(payload);
+      await bumpDataVersion(req.userId);
       return res.status(201).json(record);
     }),
 
@@ -100,6 +102,7 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
         throw new HttpError(403, editWindowErrorMessage("edited"));
       }
 
+      await bumpDataVersion(req.userId);
       return res.status(200).json(record);
     }),
 
@@ -120,6 +123,7 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
         throw new HttpError(403, editWindowErrorMessage("deleted"));
       }
 
+      await bumpDataVersion(req.userId);
       return res.status(200).json({ message: `${Model.modelName} deleted` });
     }),
   };

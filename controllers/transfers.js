@@ -5,6 +5,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const { roundMoney, parseTransactionDate } = require("../utils/validation");
 const { editWindowCutoff, editWindowErrorMessage } = require("../utils/editWindow");
 const { assertAccountsOwned } = require("../utils/accountAccess");
+const { bumpDataVersion } = require("../utils/dataVersion");
 
 exports.createTransfer = asyncHandler(async (req, res) => {
   const amount = roundMoney(req.body.amount);
@@ -33,6 +34,7 @@ exports.createTransfer = asyncHandler(async (req, res) => {
     date: dateResult.date,
   });
 
+  await bumpDataVersion(req.userId);
   return res.status(201).json(transfer);
 });
 
@@ -55,5 +57,6 @@ exports.deleteTransfer = asyncHandler(async (req, res) => {
     throw new HttpError(403, editWindowErrorMessage("deleted"));
   }
 
+  await bumpDataVersion(req.userId);
   return res.status(200).json({ message: "Transfer deleted" });
 });

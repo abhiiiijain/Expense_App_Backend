@@ -51,6 +51,11 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /** Bumped on expense/income/transfer/account writes. Cheap dashboard sync stamp. */
+    dataVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

@@ -7,6 +7,7 @@ const { parseOpeningBalance } = require("../utils/validation");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
 const { ensureDefaultAccount } = require("./accounts");
+const { bumpDataVersion } = require("../utils/dataVersion");
 
 const MIN_PASSWORD_LENGTH = 6;
 
@@ -131,6 +132,7 @@ exports.updateOpeningBalance = asyncHandler(async (req, res) => {
   const account = await ensureDefaultAccount(user._id, openingResult.amount);
   account.openingBalance = openingResult.amount;
   await account.save();
+  await bumpDataVersion(user._id);
 
   return res.status(200).json(formatUser(user, account, req));
 });

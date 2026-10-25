@@ -69,7 +69,7 @@ On startup Mongoose `syncIndexes()` aligns indexes with the models.
 ### Users and accounts
 
 - Transactions are owned by `userId` (User `_id`), not email. Changing email does not orphan rows.
-- Opening cash lives on the **default Account**, not on User. User only stores `openingBalanceSet`.
+- Opening cash lives on the **default Account**, not on User. User stores `openingBalanceSet` and `dataVersion` (bumped on ledger writes; `GET /transactions/sync` returns it).
 - Account types: `bank`, `cash`, `credit`, `other`. Names are unique per user.
 - Credit accounts require `statementDay` and `dueDay` (1–28). Unused credit limit is not cash.
 - Card bill payments are expenses with subcategory `Credit Card Payment` and optional `settlesAccountId`.
@@ -146,8 +146,9 @@ Writes `backups/<timestamp>/spendwise-backup.json` (gitignored) with expenses, i
 | `POST` | `/api/v1/accounts` | Create account (credit requires bill/due days) |
 | `PUT` | `/api/v1/accounts/:id` | Update account |
 | `DELETE` | `/api/v1/accounts/:id` | Delete unused account |
-| `GET` | `/api/v1/transactions` | List expenses, incomes, and transfers |
-| `GET` | `/api/v1/transactions/sync` | Cheap stamp for dashboard polling |
+| `GET` | `/api/v1/transactions` | Month (`monthKey`: accounts + balances + that period’s rows), search (`q`), or date range (`from`/`to`) |
+| `GET` | `/api/v1/transactions/stats` | Lifetime category / month spend totals |
+| `GET` | `/api/v1/transactions/sync` | `dataVersion` stamp for dashboard polling |
 | `POST` | `/api/v1/add-expense` | Add expense |
 | `PUT` | `/api/v1/update-expense/:id` | Update expense |
 | `DELETE` | `/api/v1/delete-expense/:id` | Delete expense |
@@ -200,7 +201,7 @@ server.js              Process entry (listen + DB connect + keep-alive job)
 config/env.js          Mode-based env loading
 constants/             PIN, edit window, service name
 controllers/           Route handlers
-data/taxonomy.json     Expense/income categories
+../shared/taxonomy.json  Expense/income categories (shared with the app)
 db/                    Mongo connect + index sync
 jobs/                  Background jobs (keep-alive)
 middleware/            Auth, PIN session, rate limit, logging

@@ -2,6 +2,7 @@ const Budget = require("../models/Budget");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
 const { EXPENSE_CATEGORIES, roundMoney } = require("../utils/validation");
+const { bumpDataVersion } = require("../utils/dataVersion");
 
 exports.listBudgets = asyncHandler(async (req, res) => {
   const monthKey = req.query.month;
@@ -30,6 +31,7 @@ exports.upsertBudget = asyncHandler(async (req, res) => {
 
   if (amount === 0) {
     await Budget.findOneAndDelete({ userId: req.userId, monthKey, category });
+    await bumpDataVersion(req.userId);
     return res.status(200).json({ removed: true, category, monthKey });
   }
 
@@ -38,6 +40,7 @@ exports.upsertBudget = asyncHandler(async (req, res) => {
     { $set: { amount } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
+  await bumpDataVersion(req.userId);
 
   return res.status(200).json(budget);
 });

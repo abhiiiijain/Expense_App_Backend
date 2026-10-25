@@ -1,4 +1,4 @@
-const taxonomy = require("../data/taxonomy.json");
+const taxonomy = require("../../shared/taxonomy.json");
 const mongoose = require("mongoose");
 const { CARD_PAYMENT_SUBCATEGORY } = require("./creditCardPayments");
 
@@ -107,23 +107,6 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
   };
 }
 
-const DEFAULT_TRANSACTION_LIMIT = 500;
-const MAX_TRANSACTION_LIMIT = 1000;
-
-function getPagination(query) {
-  const skip = Math.max(parseInt(query.skip, 10) || 0, 0);
-
-  if (query.limit === undefined || query.limit === "") {
-    return { limit: DEFAULT_TRANSACTION_LIMIT, skip };
-  }
-
-  const limit = Math.min(
-    Math.max(parseInt(query.limit, 10) || DEFAULT_TRANSACTION_LIMIT, 1),
-    MAX_TRANSACTION_LIMIT
-  );
-  return { limit, skip };
-}
-
 function parseMonthDay(value, label) {
   if (value === undefined || value === null || value === "") {
     return { day: null };
@@ -166,7 +149,6 @@ module.exports = {
   INCOME_SUBCATEGORIES,
   validateTransactionBody,
   parseTransactionDate,
-  getPagination,
   parseOpeningBalance,
   parseCreditCycle,
   roundMoney,

@@ -4,6 +4,7 @@ const Income = require("../models/Income");
 const Transfer = require("../models/Transfer");
 const User = require("../models/User");
 const { HttpError } = require("../utils/HttpError");
+const { bumpDataVersion } = require("../utils/dataVersion");
 const asyncHandler = require("../middleware/asyncHandler");
 const { parseOpeningBalance, parseCreditCycle, roundMoney } = require("../utils/validation");
 const {
@@ -35,14 +36,12 @@ async function ensureDefaultAccount(userId, openingBalance = 0) {
 
 exports.ensureDefaultAccount = ensureDefaultAccount;
 
-exports.listAccounts = asyncHandler(async (req, res) => {
-  await ensureDefaultAccount(req.userId);
-
-  const accounts = await Account.find({ userId: req.userId })
+async function loadAccountsWithBalances(userId) {
+  const accounts = await Account.find({ userId })
     .sort({ isDefault: -1, name: 1 })
     .lean();
 
-  const userObjectId = new mongoose.Types.ObjectId(req.userId);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
   const [incomeTotals, expenseTotals, transferOutTotals, transferInTotals, cardPayments] =
     await Promise.all([
       Income.aggregate([
@@ -119,7 +118,15 @@ exports.listAccounts = asyncHandler(async (req, res) => {
     };
   });
 
-  return res.status(200).json({ accounts: withBalances, hasTransactions });
+  return { accounts: withBalances, hasTransactions };
+}
+
+exports.loadAccountsWithBalances = loadAccountsWithBalances;
+
+exports.listAccounts = asyncHandler(async (req, res) => {
+  await ensureDefaultAccount(req.userId);
+  const payload = await loadAccountsWithBalances(req.userId);
+  return res.status(200).json(payload);
 });
 
 exports.createAccount = asyncHandler(async (req, res) => {
@@ -150,6 +157,7 @@ exports.createAccount = asyncHandler(async (req, res) => {
         ? { statementDay: cycle.statementDay, dueDay: cycle.dueDay }
         : {}),
     });
+    await bumpDataVersion(req.userId);
     return res.status(201).json(account);
   } catch (error) {
     if (error?.code === 11000) {
@@ -231,6 +239,7 @@ exports.updateAccount = asyncHandler(async (req, res) => {
     );
   }
 
+  await bumpDataVersion(req.userId);
   return res.status(200).json(account);
 });
 
@@ -261,5 +270,6 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
   }
 
   await account.deleteOne();
+  await bumpDataVersion(req.userId);
   return res.status(200).json({ message: "Account deleted" });
 });
