@@ -3,7 +3,7 @@ const {
   isCardPaymentExpense,
   paymentSettlesCreditAccount,
 } = require("./creditCardPayments");
-const { getPeriodMonthKey } = require("./period");
+const { getPeriodMonthKey, shiftMonthKey, inGraceWindow } = require("./period");
 const { roundMoney } = require("./validation");
 
 function emptyActivity() {
@@ -84,4 +84,44 @@ function rewindBalance(current, activity) {
   return Number.isFinite(next) ? next : 0;
 }
 
-module.exports = { activityFromMonth, rewindBalance };
+function isPriorGraceSettlement(tx, monthKey, cycle, creditAccount, creditAccounts, kind) {
+  if (!creditAccount || !cycle || cycle === "calendar") return false;
+  const previousKey = shiftMonthKey(monthKey, -1);
+  if (!previousKey || !inGraceWindow(tx?.date || tx?.createdAt, previousKey, cycle)) {
+    return false;
+  }
+  if (kind === "transfer") {
+    return String(tx.toAccountId) === accountIdOf(creditAccount);
+  }
+  return isCardPaymentExpense(tx) && paymentSettlesCreditAccount(tx, creditAccount, creditAccounts);
+}
+
+function priorGracePaid(expenses, transfers, monthKey, cycle, creditAccount, creditAccounts) {
+  let paid = 0;
+  for (const tx of expenses || []) {
+    if (isPriorGraceSettlement(tx, monthKey, cycle, creditAccount, creditAccounts, "expense")) {
+      paid += Number(tx.amount) || 0;
+    }
+  }
+  for (const tx of transfers || []) {
+    if (isPriorGraceSettlement(tx, monthKey, cycle, creditAccount, creditAccounts, "transfer")) {
+      paid += Number(tx.amount) || 0;
+    }
+  }
+  return paid;
+}
+
+function carriedForwardOpening(ledgerOpening, gracePaid) {
+  const opening = Number(ledgerOpening) || 0;
+  if (opening >= -0.005) return roundMoney(opening) ?? 0;
+  const paid = Math.max(0, Number(gracePaid) || 0);
+  return roundMoney(Math.min(0, opening + paid)) ?? 0;
+}
+
+module.exports = {
+  activityFromMonth,
+  rewindBalance,
+  isPriorGraceSettlement,
+  priorGracePaid,
+  carriedForwardOpening,
+};

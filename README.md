@@ -148,7 +148,7 @@ Writes `backups/<timestamp>/spendwise-backup.json` (gitignored) with expenses, i
 | `DELETE` | `/api/v1/accounts/:id` | Delete unused account |
 | `GET` | `/api/v1/transactions` | Month (`monthKey`: accounts + balances + that period’s rows), search (`q`), or date range (`from`/`to`) |
 | `GET` | `/api/v1/transactions/stats` | Lifetime category / month spend totals |
-| `GET` | `/api/v1/transactions/sync` | `dataVersion` stamp for dashboard polling |
+| `GET` | `/api/v1/transactions/sync` | `dataVersion` stamp; dashboard checks it when the tab is focused |
 | `POST` | `/api/v1/add-expense` | Add expense |
 | `PUT` | `/api/v1/update-expense/:id` | Update expense |
 | `DELETE` | `/api/v1/delete-expense/:id` | Delete expense |

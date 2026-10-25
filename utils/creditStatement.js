@@ -1,4 +1,4 @@
-const { formatDateKeyUtc, periodBounds } = require("./period");
+const { inGraceWindow } = require("./period");
 const {
   accountIdOf,
   isCardPaymentExpense,
@@ -11,13 +11,6 @@ function formatChartDateLabel(date) {
     month: "short",
     timeZone: "UTC",
   });
-}
-
-function inGraceWindow(dateInput, monthKey, cycle) {
-  const bounds = periodBounds(monthKey, cycle);
-  if (!bounds?.statement || !bounds?.due) return false;
-  const key = formatDateKeyUtc(dateInput);
-  return key >= formatDateKeyUtc(bounds.statement) && key <= formatDateKeyUtc(bounds.due);
 }
 
 function getCreditBillPaymentStatus({
@@ -40,13 +33,13 @@ function getCreditBillPaymentStatus({
   for (const tx of expenses) {
     if (!isCardPaymentExpense(tx)) continue;
     if (!paymentSettlesCreditAccount(tx, creditAccount, creditAccounts)) continue;
-    if (!inGraceWindow(tx.date || tx, monthKey, cycle)) continue;
+    if (!inGraceWindow(tx.date || tx.createdAt, monthKey, cycle)) continue;
     payments.push({ date: new Date(tx.date), amount: Number(tx.amount) || 0 });
   }
 
   for (const tx of transfers) {
     if (String(tx.toAccountId) !== creditId) continue;
-    if (!inGraceWindow(tx.date || tx, monthKey, cycle)) continue;
+    if (!inGraceWindow(tx.date || tx.createdAt, monthKey, cycle)) continue;
     payments.push({ date: new Date(tx.date), amount: Number(tx.amount) || 0 });
   }
 

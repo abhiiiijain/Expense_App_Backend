@@ -7,11 +7,62 @@ const User = require("../models/User");
 const asyncHandler = require("../middleware/asyncHandler");
 const { loadAccountsWithBalances } = require("./accounts");
 const { periodBounds, parseDateKey, parseMonthKey, getPeriodMonthKey } = require("../utils/period");
-const { activityFromMonth, rewindBalance } = require("../utils/monthBalances");
+const {
+  activityFromMonth,
+  rewindBalance,
+  priorGracePaid,
+  carriedForwardOpening,
+} = require("../utils/monthBalances");
 const { getCreditBillPaymentStatus } = require("../utils/creditStatement");
 const { CARD_PAYMENT_SUBCATEGORY, paymentSettlesCreditAccount } = require("../utils/creditCardPayments");
 
 const SEARCH_LIMIT = 150;
+
+function periodSummary(
+  account,
+  allIncomes,
+  allExpenses,
+  allTransfers,
+  monthKey,
+  creditAccounts,
+  cycle
+) {
+  const { fromThisMonth, afterThisMonth } = activityFromMonth(
+    allIncomes,
+    allExpenses,
+    allTransfers,
+    [String(account.id)],
+    monthKey,
+    creditAccounts,
+    cycle
+  );
+  const statementOpening = rewindBalance(account.balance || 0, fromThisMonth);
+  const monthEnd = rewindBalance(account.balance || 0, afterThisMonth);
+  const creditCycle = account.type === "credit" && cycle !== "calendar";
+  const gracePaid = creditCycle
+    ? priorGracePaid(allExpenses, allTransfers, monthKey, cycle, account, creditAccounts)
+    : 0;
+  const monthStartOpening = creditCycle
+    ? carriedForwardOpening(statementOpening, gracePaid)
+    : statementOpening;
+  const creditBill = creditCycle
+    ? getCreditBillPaymentStatus({
+        monthKey,
+        closingBalance: monthEnd,
+        expenses: allExpenses,
+        transfers: allTransfers,
+        creditAccount: account,
+        creditAccounts,
+        cycle,
+      })
+    : null;
+  return {
+    monthStartOpening,
+    statementOpening,
+    monthEndBalance: monthEnd,
+    creditBill,
+  };
+}
 
 function asObjectId(id) {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
@@ -174,7 +225,6 @@ exports.getTransactions = asyncHandler(async (req, res) => {
     const selected = accountObjectId
       ? accounts.filter((account) => String(account.id) === String(accountObjectId))
       : accounts;
-    const selectedIds = selected.map((account) => String(account.id));
     const creditAccount = selected.length === 1 && selected[0].type === "credit" ? selected[0] : null;
     const accountCycle =
       creditAccount && creditAccount.statementDay && creditAccount.dueDay
@@ -206,38 +256,46 @@ exports.getTransactions = asyncHandler(async (req, res) => {
         matchesAccount(tx, accountObjectId, { kind: "transfer" })
     );
 
-    const current = selected.reduce((sum, account) => sum + (account.balance || 0), 0);
-    const { fromThisMonth, afterThisMonth } = activityFromMonth(
-      allIncomes,
-      allExpenses,
-      allTransfers,
-      selectedIds,
-      monthKey,
-      creditAccounts,
-      accountCycle
+    const accountsWithPeriod = accounts.map((account) => ({
+      ...account,
+      ...periodSummary(
+        account,
+        allIncomes,
+        allExpenses,
+        allTransfers,
+        monthKey,
+        creditAccounts,
+        accountCycle
+      ),
+    }));
+    const selectedWithPeriod = accountObjectId
+      ? accountsWithPeriod.filter((account) => String(account.id) === String(accountObjectId))
+      : accountsWithPeriod;
+    const monthStartOpening = selectedWithPeriod.reduce(
+      (sum, account) => sum + (account.monthStartOpening || 0),
+      0
     );
-    const monthStartOpening = rewindBalance(current, fromThisMonth);
-    const monthEndBalance = rewindBalance(current, afterThisMonth);
-    const creditBill =
-      creditAccount && accountCycle !== "calendar"
-        ? getCreditBillPaymentStatus({
-            monthKey,
-            closingBalance: monthEndBalance,
-            expenses: allExpenses,
-            transfers: allTransfers,
-            creditAccount,
-            creditAccounts,
-            cycle: accountCycle,
-          })
-        : null;
+    const statementOpening = selectedWithPeriod.reduce(
+      (sum, account) => sum + (account.statementOpening || 0),
+      0
+    );
+    const monthEndBalance = selectedWithPeriod.reduce(
+      (sum, account) => sum + (account.monthEndBalance || 0),
+      0
+    );
+    const creditBill = creditAccount
+      ? selectedWithPeriod.find((account) => String(account.id) === String(creditAccount.id))
+          ?.creditBill || null
+      : null;
 
     return res.status(200).json({
-      accounts,
+      accounts: accountsWithPeriod,
       hasTransactions,
       expenses,
       incomes,
       transfers,
       monthStartOpening,
+      statementOpening,
       monthEndBalance,
       creditBill,
     });

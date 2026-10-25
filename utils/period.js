@@ -63,6 +63,19 @@ function getPeriodMonthKey(dateInput, cycle = "calendar") {
   return getMonthKeyUtc(utcDay(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
 }
 
+function shiftMonthKey(monthKey, delta) {
+  const parsed = parseMonthKey(monthKey);
+  if (!parsed) return null;
+  return formatMonthKeyUtc(utcDay(parsed.year, parsed.month - 1 + Number(delta || 0), 1));
+}
+
+function inGraceWindow(dateInput, monthKey, cycle) {
+  const bounds = periodBounds(monthKey, cycle);
+  if (!bounds?.statement || !bounds?.due) return false;
+  const key = formatDateKeyUtc(dateInput);
+  return key >= formatDateKeyUtc(bounds.statement) && key <= formatDateKeyUtc(bounds.due);
+}
+
 function periodBounds(monthKey, cycle = "calendar") {
   const parsed = parseMonthKey(monthKey);
   if (!parsed) return null;
@@ -87,5 +100,7 @@ module.exports = {
   formatMonthKeyUtc,
   resolveCreditCycle,
   getPeriodMonthKey,
+  shiftMonthKey,
+  inGraceWindow,
   periodBounds,
 };
