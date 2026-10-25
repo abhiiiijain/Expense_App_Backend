@@ -201,7 +201,7 @@ server.js              Process entry (listen + DB connect + keep-alive job)
 config/env.js          Mode-based env loading
 constants/             PIN, edit window, service name
 controllers/           Route handlers
-../shared/taxonomy.json  Expense/income categories (shared with the app)
+utils/taxonomy.json     Expense/income categories
 db/                    Mongo connect + index sync
 jobs/                  Background jobs (keep-alive)
 middleware/            Auth, PIN session, rate limit, logging

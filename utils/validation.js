@@ -1,4 +1,4 @@
-const taxonomy = require("../../shared/taxonomy.json");
+const taxonomy = require("./taxonomy.json");
 const mongoose = require("mongoose");
 const { CARD_PAYMENT_SUBCATEGORY } = require("./creditCardPayments");
 
