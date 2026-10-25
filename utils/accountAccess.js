@@ -2,19 +2,14 @@ const mongoose = require("mongoose");
 const Account = require("../models/Account");
 const { HttpError } = require("./HttpError");
 
-async function assertAccountOwned(userId, accountId, options = {}) {
+async function assertAccountOwned(userId, accountId) {
   if (!mongoose.Types.ObjectId.isValid(accountId)) {
-    throw new HttpError(400, options.invalidMessage || "Invalid account");
+    throw new HttpError(400, "Invalid account");
   }
 
-  let query = Account.findOne({ _id: accountId, userId });
-  if (options.select) {
-    query = query.select(options.select);
-  }
-
-  const account = options.lean === false ? await query : await query.lean();
+  const account = await Account.findOne({ _id: accountId, userId }).lean();
   if (!account) {
-    throw new HttpError(400, options.notFoundMessage || "Account not found");
+    throw new HttpError(400, "Account not found");
   }
   return account;
 }

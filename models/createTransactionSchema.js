@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-function createTransactionSchema() {
+function createTransactionSchema({ includeSubcategoryIndex = true } = {}) {
   const schema = new mongoose.Schema(
     {
       userId: {
@@ -44,13 +44,21 @@ function createTransactionSchema() {
         type: String,
         required: true,
       },
+      /** Bank "Credit Card Payment" expenses that reduce this card's due. */
+      settlesAccountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Account",
+      },
     },
     { timestamps: true }
   );
 
-  // Month lists: equality on userId, range + sort on date, tie-break on createdAt.
-  schema.index({ userId: 1, date: -1, createdAt: -1 });
-  schema.index({ userId: 1, accountId: 1, date: -1, createdAt: -1 });
+  schema.index({ userId: 1, date: -1, _id: -1 });
+  schema.index({ userId: 1, accountId: 1 });
+  schema.index({ userId: 1, updatedAt: -1 });
+  if (includeSubcategoryIndex) {
+    schema.index({ userId: 1, subcategory: 1 });
+  }
 
   return schema;
 }

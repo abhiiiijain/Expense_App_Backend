@@ -3,7 +3,26 @@ const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
 const { editWindowCutoff, editWindowErrorMessage } = require("../utils/editWindow");
 const { assertAccountOwned } = require("../utils/accountAccess");
+const Account = require("../models/Account");
+const { CARD_PAYMENT_SUBCATEGORY } = require("../utils/creditCardPayments");
 const mongoose = require("mongoose");
+
+async function withSettlesAccount(userId, data) {
+  if (data.subcategory !== CARD_PAYMENT_SUBCATEGORY) {
+    const next = { ...data };
+    delete next.settlesAccountId;
+    return next;
+  }
+  if (data.settlesAccountId) {
+    await assertAccountOwned(userId, data.settlesAccountId);
+    return data;
+  }
+  const credits = await Account.find({ userId, type: "credit" }).select("_id").lean();
+  if (credits.length === 1) {
+    return { ...data, settlesAccountId: credits[0]._id };
+  }
+  return data;
+}
 
 function assertObjectId(id) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -33,8 +52,9 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
       }
 
       await assertAccountOwned(req.userId, result.data.accountId);
+      const payload = await withSettlesAccount(req.userId, result.data);
 
-      const record = await Model.create(result.data);
+      const record = await Model.create(payload);
       return res.status(201).json(record);
     }),
 
@@ -54,14 +74,21 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
       }
 
       await assertAccountOwned(req.userId, result.data.accountId);
+      const payload = await withSettlesAccount(req.userId, result.data);
+      const { title, amount, category, subcategory, icon, date, accountId, settlesAccountId } =
+        payload;
+      const update = {
+        $set: { title, amount, category, subcategory, icon, date, accountId },
+      };
+      if (settlesAccountId) update.$set.settlesAccountId = settlesAccountId;
+      else update.$unset = { settlesAccountId: 1 };
 
-      const { title, amount, category, subcategory, icon, date, accountId } = result.data;
       const record = await Model.findOneAndUpdate(
         {
           ...ownerFilter(req, id),
           createdAt: { $gte: editWindowCutoff() },
         },
-        { $set: { title, amount, category, subcategory, icon, date, accountId } },
+        update,
         { new: true }
       );
 

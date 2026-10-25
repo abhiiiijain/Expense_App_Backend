@@ -1,5 +1,6 @@
 const taxonomy = require("../data/taxonomy.json");
 const mongoose = require("mongoose");
+const { CARD_PAYMENT_SUBCATEGORY } = require("./creditCardPayments");
 
 const EXPENSE_CATEGORIES = taxonomy.expenseCategories;
 const INCOME_CATEGORIES = taxonomy.incomeCategories;
@@ -38,7 +39,7 @@ function parseTransactionDate(value) {
 }
 
 function validateTransactionBody(body, userId, allowedCategories, subcategoryMap) {
-  const { title, amount, category, subcategory, icon, date, accountId } = body;
+  const { title, amount, category, subcategory, icon, date, accountId, settlesAccountId } = body;
 
   if (!userId || !title || !category || !subcategory || !icon || !accountId) {
     return { error: "All fields are required!" };
@@ -82,6 +83,15 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
     return { error: dateResult.error };
   }
 
+  let settles = undefined;
+  if (
+    trimmedSubcategory === CARD_PAYMENT_SUBCATEGORY &&
+    settlesAccountId &&
+    mongoose.Types.ObjectId.isValid(settlesAccountId)
+  ) {
+    settles = settlesAccountId;
+  }
+
   return {
     data: {
       userId,
@@ -92,6 +102,7 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
       category,
       subcategory: trimmedSubcategory,
       icon,
+      ...(settles ? { settlesAccountId: settles } : {}),
     },
   };
 }
@@ -113,28 +124,26 @@ function getPagination(query) {
   return { limit, skip };
 }
 
-/** Parse YYYY-MM into inclusive UTC month range. */
-function getMonthRange(monthKey) {
-  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
-    return null;
+function parseMonthDay(value, label) {
+  if (value === undefined || value === null || value === "") {
+    return { day: null };
   }
-  const [year, month] = monthKey.split("-").map(Number);
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-  return { start, end };
+  const day = Number(value);
+  if (!Number.isInteger(day) || day < 1 || day > 28) {
+    return { error: `${label} must be a day from 1 to 28` };
+  }
+  return { day };
 }
 
-/** Rolling local-time window: last N calendar days including today. */
-function getRecentDaysRange(daysParam) {
-  const days = parseInt(daysParam, 10);
-  if (!Number.isFinite(days) || days < 1 || days > 366) {
-    return null;
+function parseCreditCycle(body, { required = false } = {}) {
+  const statement = parseMonthDay(body.statementDay, "Statement day");
+  if (statement.error) return statement;
+  const due = parseMonthDay(body.dueDay, "Due day");
+  if (due.error) return due;
+  if (required && (statement.day === null || due.day === null)) {
+    return { error: "Statement day and due day are required for credit cards" };
   }
-
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (days - 1));
-  return { start };
+  return { statementDay: statement.day, dueDay: due.day };
 }
 
 function parseOpeningBalance(value) {
@@ -158,8 +167,7 @@ module.exports = {
   validateTransactionBody,
   parseTransactionDate,
   getPagination,
-  getMonthRange,
-  getRecentDaysRange,
   parseOpeningBalance,
+  parseCreditCycle,
   roundMoney,
 };

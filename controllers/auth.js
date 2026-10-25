@@ -1,7 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const Account = require("../models/Account");
 const { jwtSecret, jwtExpiresIn } = require("../config/env");
 const { rpIdFromRequest } = require("../utils/clientOrigin");
 const { parseOpeningBalance } = require("../utils/validation");
@@ -11,8 +10,8 @@ const { ensureDefaultAccount } = require("./accounts");
 
 const MIN_PASSWORD_LENGTH = 6;
 
-const generateToken = (userId, email) => {
-  return jwt.sign({ userId, email }, jwtSecret, { expiresIn: jwtExpiresIn });
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, jwtSecret, { expiresIn: jwtExpiresIn });
 };
 
 const formatUser = (user, account, req) => {
@@ -32,28 +31,6 @@ const formatUser = (user, account, req) => {
     ),
   };
 };
-
-async function withDefaultAccount(user, openingBalance = 0) {
-  const account = await ensureDefaultAccount(user._id, openingBalance);
-
-  // Legacy user.openingBalance → Account (once). Never overwrite if any account
-  // already has an opening — that caused HDFC to inherit SBI's balance when it
-  // became the default with opening 0.
-  const legacy = user.openingBalance;
-  if (typeof legacy === "number" && legacy > 0) {
-    const alreadyHasOpening = await Account.exists({
-      userId: user._id,
-      openingBalance: { $gt: 0 },
-    });
-    if (!alreadyHasOpening && !(account.openingBalance > 0)) {
-      account.openingBalance = legacy;
-      await account.save();
-    }
-    await User.updateOne({ _id: user._id }, { $unset: { openingBalance: 1 } });
-  }
-
-  return account;
-}
 
 exports.register = asyncHandler(async (req, res) => {
   const { firstName = "", lastName = "", email, password, openingBalance } = req.body;
@@ -91,7 +68,7 @@ exports.register = asyncHandler(async (req, res) => {
 
   const account = await ensureDefaultAccount(user._id, openingResult.amount ?? 0);
 
-  const token = generateToken(user._id.toString(), user.email);
+  const token = generateToken(user._id.toString());
   return res.status(201).json({
     token,
     user: formatUser(user, account, req),
@@ -114,9 +91,9 @@ exports.login = asyncHandler(async (req, res) => {
     throw new HttpError(401, "Invalid credentials");
   }
 
-  const account = await withDefaultAccount(user, user.openingBalance ?? 0);
+  const account = await ensureDefaultAccount(user._id);
 
-  const token = generateToken(user._id.toString(), user.email);
+  const token = generateToken(user._id.toString());
   return res.status(200).json({
     token,
     user: formatUser(user, account, req),
@@ -125,12 +102,12 @@ exports.login = asyncHandler(async (req, res) => {
 
 exports.getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.userId).select(
-    "firstName lastName email openingBalance openingBalanceSet pinSet webauthnCredentials.rpId"
+    "firstName lastName email openingBalanceSet pinSet webauthnCredentials.rpId"
   );
   if (!user) {
     throw new HttpError(404, "User not found");
   }
-  const account = await withDefaultAccount(user, user.openingBalance ?? 0);
+  const account = await ensureDefaultAccount(user._id);
   return res.status(200).json(formatUser(user, account, req));
 });
 
@@ -150,7 +127,6 @@ exports.updateOpeningBalance = asyncHandler(async (req, res) => {
 
   user.openingBalanceSet = true;
   await user.save();
-  await User.updateOne({ _id: user._id }, { $unset: { openingBalance: 1 } });
 
   const account = await ensureDefaultAccount(user._id, openingResult.amount);
   account.openingBalance = openingResult.amount;
@@ -208,11 +184,11 @@ exports.changeEmail = asyncHandler(async (req, res) => {
     throw new HttpError(401, "Password is incorrect");
   }
 
-  const account = await withDefaultAccount(user, user.openingBalance ?? 0);
+  const account = await ensureDefaultAccount(user._id);
 
   if (email === user.email) {
     return res.status(200).json({
-      token: generateToken(user._id.toString(), user.email),
+      token: generateToken(user._id.toString()),
       user: formatUser(user, account, req),
     });
   }
@@ -225,7 +201,7 @@ exports.changeEmail = asyncHandler(async (req, res) => {
   user.email = email;
   await user.save();
 
-  const token = generateToken(user._id.toString(), user.email);
+  const token = generateToken(user._id.toString());
   return res.status(200).json({
     token,
     user: formatUser(user, account, req),

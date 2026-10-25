@@ -5,7 +5,12 @@ const Transfer = require("../models/Transfer");
 const User = require("../models/User");
 const { HttpError } = require("../utils/HttpError");
 const asyncHandler = require("../middleware/asyncHandler");
-const { parseOpeningBalance, roundMoney } = require("../utils/validation");
+const { parseOpeningBalance, parseCreditCycle, roundMoney } = require("../utils/validation");
+const {
+  CARD_PAYMENT_SUBCATEGORY,
+  cardPaymentsToward,
+  postedOnCreditAccount,
+} = require("../utils/creditCardPayments");
 const mongoose = require("mongoose");
 
 async function ensureDefaultAccount(userId, openingBalance = 0) {
@@ -38,24 +43,28 @@ exports.listAccounts = asyncHandler(async (req, res) => {
     .lean();
 
   const userObjectId = new mongoose.Types.ObjectId(req.userId);
-  const [incomeTotals, expenseTotals, transferOutTotals, transferInTotals] = await Promise.all([
-    Income.aggregate([
-      { $match: { userId: userObjectId } },
-      { $group: { _id: "$accountId", total: { $sum: "$amount" } } },
-    ]),
-    Expense.aggregate([
-      { $match: { userId: userObjectId } },
-      { $group: { _id: "$accountId", total: { $sum: "$amount" } } },
-    ]),
-    Transfer.aggregate([
-      { $match: { userId: userObjectId } },
-      { $group: { _id: "$fromAccountId", total: { $sum: "$amount" } } },
-    ]),
-    Transfer.aggregate([
-      { $match: { userId: userObjectId } },
-      { $group: { _id: "$toAccountId", total: { $sum: "$amount" } } },
-    ]),
-  ]);
+  const [incomeTotals, expenseTotals, transferOutTotals, transferInTotals, cardPayments] =
+    await Promise.all([
+      Income.aggregate([
+        { $match: { userId: userObjectId } },
+        { $group: { _id: "$accountId", total: { $sum: "$amount" } } },
+      ]),
+      Expense.aggregate([
+        { $match: { userId: userObjectId } },
+        { $group: { _id: "$accountId", total: { $sum: "$amount" } } },
+      ]),
+      Transfer.aggregate([
+        { $match: { userId: userObjectId } },
+        { $group: { _id: "$fromAccountId", total: { $sum: "$amount" } } },
+      ]),
+      Transfer.aggregate([
+        { $match: { userId: userObjectId } },
+        { $group: { _id: "$toAccountId", total: { $sum: "$amount" } } },
+      ]),
+      Expense.find({ userId: userObjectId, subcategory: CARD_PAYMENT_SUBCATEGORY })
+        .select("accountId settlesAccountId title amount subcategory")
+        .lean(),
+    ]);
 
   const incomeByAccount = Object.fromEntries(
     incomeTotals.map((row) => [String(row._id), row.total || 0])
@@ -75,21 +84,36 @@ exports.listAccounts = asyncHandler(async (req, res) => {
     expenseTotals.some((row) => (row.total || 0) > 0) ||
     transferOutTotals.some((row) => (row.total || 0) > 0);
 
+  const creditAccounts = accounts.filter((account) => account.type === "credit");
+
+  for (const payment of cardPayments) {
+    if (!postedOnCreditAccount(payment, creditAccounts)) continue;
+    const fromId = String(payment.accountId);
+    expenseByAccount[fromId] = (expenseByAccount[fromId] || 0) - (Number(payment.amount) || 0);
+  }
+
   const withBalances = accounts.map((account) => {
     const id = String(account._id);
     const incomeTotal = incomeByAccount[id] || 0;
     const expenseTotal = expenseByAccount[id] || 0;
     const transferOut = transferOutByAccount[id] || 0;
     const transferIn = transferInByAccount[id] || 0;
+    const settled =
+      account.type === "credit"
+        ? cardPaymentsToward(cardPayments, account, creditAccounts)
+        : 0;
     const balance =
-      roundMoney(account.openingBalance + incomeTotal - expenseTotal - transferOut + transferIn) ??
-      0;
+      roundMoney(
+        account.openingBalance + incomeTotal - expenseTotal - transferOut + transferIn + settled
+      ) ?? 0;
 
     return {
       id: account._id,
       name: account.name,
       type: account.type,
       openingBalance: account.openingBalance,
+      statementDay: account.statementDay ?? null,
+      dueDay: account.dueDay ?? null,
       isDefault: account.isDefault,
       balance,
     };
@@ -100,7 +124,7 @@ exports.listAccounts = asyncHandler(async (req, res) => {
 
 exports.createAccount = asyncHandler(async (req, res) => {
   const name = String(req.body.name || "").trim();
-  const type = ["bank", "cash", "other"].includes(req.body.type) ? req.body.type : "bank";
+  const type = Account.ACCOUNT_TYPES.includes(req.body.type) ? req.body.type : "bank";
   const openingResult = parseOpeningBalance(req.body.openingBalance ?? 0);
 
   if (!name) {
@@ -110,6 +134,11 @@ exports.createAccount = asyncHandler(async (req, res) => {
     throw new HttpError(400, openingResult.error);
   }
 
+  const cycle = parseCreditCycle(req.body, { required: type === "credit" });
+  if (cycle.error) {
+    throw new HttpError(400, cycle.error);
+  }
+
   try {
     const account = await Account.create({
       userId: req.userId,
@@ -117,6 +146,9 @@ exports.createAccount = asyncHandler(async (req, res) => {
       type,
       openingBalance: openingResult.amount ?? 0,
       isDefault: false,
+      ...(type === "credit"
+        ? { statementDay: cycle.statementDay, dueDay: cycle.dueDay }
+        : {}),
     });
     return res.status(201).json(account);
   } catch (error) {
@@ -144,10 +176,29 @@ exports.updateAccount = asyncHandler(async (req, res) => {
     account.name = name;
   }
   if (req.body.type !== undefined) {
-    if (!["bank", "cash", "other"].includes(req.body.type)) {
+    if (!Account.ACCOUNT_TYPES.includes(req.body.type)) {
       throw new HttpError(400, "Invalid account type");
     }
     account.type = req.body.type;
+  }
+  const leaveCredit = account.type !== "credit";
+  const hadCycle = account.statementDay != null || account.dueDay != null;
+  if (leaveCredit) {
+    account.statementDay = undefined;
+    account.dueDay = undefined;
+  } else if (req.body.statementDay !== undefined || req.body.dueDay !== undefined) {
+    const cycle = parseCreditCycle(
+      {
+        statementDay: req.body.statementDay ?? account.statementDay,
+        dueDay: req.body.dueDay ?? account.dueDay,
+      },
+      { required: true }
+    );
+    if (cycle.error) {
+      throw new HttpError(400, cycle.error);
+    }
+    account.statementDay = cycle.statementDay;
+    account.dueDay = cycle.dueDay;
   }
   if (req.body.openingBalance !== undefined) {
     const openingResult = parseOpeningBalance(req.body.openingBalance);
@@ -156,10 +207,7 @@ exports.updateAccount = asyncHandler(async (req, res) => {
     }
     account.openingBalance = openingResult.amount;
     if (account.isDefault) {
-      await User.updateOne(
-        { _id: req.userId },
-        { $set: { openingBalanceSet: true }, $unset: { openingBalance: 1 } }
-      );
+      await User.updateOne({ _id: req.userId }, { $set: { openingBalanceSet: true } });
     }
   }
   if (req.body.isDefault === true) {
@@ -174,6 +222,13 @@ exports.updateAccount = asyncHandler(async (req, res) => {
       throw new HttpError(409, "An account with that name already exists");
     }
     throw error;
+  }
+
+  if (leaveCredit && hadCycle) {
+    await Account.updateOne(
+      { _id: account._id },
+      { $unset: { statementDay: 1, dueDay: 1 } }
+    );
   }
 
   return res.status(200).json(account);
