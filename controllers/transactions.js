@@ -6,7 +6,13 @@ const Account = require("../models/Account");
 const User = require("../models/User");
 const asyncHandler = require("../middleware/asyncHandler");
 const { loadAccountsWithBalances } = require("./accounts");
-const { periodBounds, parseDateKey, parseMonthKey, getPeriodMonthKey } = require("../utils/period");
+const {
+  periodBounds,
+  parseDateKey,
+  parseMonthKey,
+  getPeriodMonthKey,
+  formatMonthKeyUtc,
+} = require("../utils/period");
 const {
   activityFromMonth,
   rewindBalance,
@@ -15,6 +21,7 @@ const {
 } = require("../utils/monthBalances");
 const { getCreditBillPaymentStatus } = require("../utils/creditStatement");
 const { CARD_PAYMENT_SUBCATEGORY, paymentSettlesCreditAccount } = require("../utils/creditCardPayments");
+const { REFUND_SUBCATEGORY, expensesNetOfRefunds } = require("../utils/spendRefunds");
 
 const SEARCH_LIMIT = 150;
 
@@ -67,6 +74,44 @@ function periodSummary(
 function asObjectId(id) {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
   return new mongoose.Types.ObjectId(id);
+}
+
+function spendStatsFromEntries(entries) {
+  const categorySums = {};
+  const subcategorySums = {};
+  const monthlyMap = {};
+
+  for (const entry of entries) {
+    const cat = entry.category || "Other";
+    const sub = entry.subcategory || "Uncategorized";
+    const monthKey = entry.monthKey || "";
+    const total = Number(entry.total) || 0;
+    categorySums[cat] = (categorySums[cat] || 0) + total;
+    if (!subcategorySums[cat]) subcategorySums[cat] = {};
+    subcategorySums[cat][sub] = (subcategorySums[cat][sub] || 0) + total;
+    if (monthKey) monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + total;
+  }
+
+  for (const cat of Object.keys(categorySums)) {
+    categorySums[cat] = Math.max(0, categorySums[cat]);
+    for (const sub of Object.keys(subcategorySums[cat] || {})) {
+      subcategorySums[cat][sub] = Math.max(0, subcategorySums[cat][sub]);
+    }
+  }
+  for (const monthKey of Object.keys(monthlyMap)) {
+    monthlyMap[monthKey] = Math.max(0, monthlyMap[monthKey]);
+  }
+
+  const monthlyTotals = Object.keys(monthlyMap)
+    .sort((a, b) => b.localeCompare(a))
+    .map((monthKey) => ({ monthKey, total: monthlyMap[monthKey] }));
+
+  return {
+    categorySums,
+    subcategorySums,
+    monthlyTotals,
+    total: Object.values(categorySums).reduce((sum, value) => sum + value, 0),
+  };
 }
 
 function escapeRegex(value) {
@@ -132,53 +177,75 @@ exports.getSpendingStats = asyncHandler(async (req, res) => {
   const category = String(req.query.category || "").trim();
   const subcategory = String(req.query.subcategory || "").trim();
 
-  const match = {
+  const expenseMatch = {
     userId: userObjectId,
     subcategory: { $ne: CARD_PAYMENT_SUBCATEGORY },
   };
-  if (accountId) match.accountId = accountId;
-  if (category && category !== "All") match.category = category;
-  if (subcategory && subcategory !== "All") match.subcategory = subcategory;
-
-  const rows = await Expense.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: {
-          category: "$category",
-          subcategory: "$subcategory",
-          monthKey: { $dateToString: { format: "%Y-%m", date: "$date", timezone: "UTC" } },
-        },
-        total: { $sum: "$amount" },
-      },
-    },
-  ]);
-
-  const categorySums = {};
-  const subcategorySums = {};
-  const monthlyMap = {};
-
-  for (const row of rows) {
-    const cat = row._id.category || "Other";
-    const sub = row._id.subcategory || "Uncategorized";
-    const monthKey = row._id.monthKey;
-    const total = row.total || 0;
-    categorySums[cat] = (categorySums[cat] || 0) + total;
-    if (!subcategorySums[cat]) subcategorySums[cat] = {};
-    subcategorySums[cat][sub] = (subcategorySums[cat][sub] || 0) + total;
-    monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + total;
+  const refundMatch = {
+    userId: userObjectId,
+    subcategory: REFUND_SUBCATEGORY,
+  };
+  if (accountId) {
+    expenseMatch.accountId = accountId;
+    refundMatch.accountId = accountId;
   }
 
-  const monthlyTotals = Object.keys(monthlyMap)
-    .sort((a, b) => b.localeCompare(a))
-    .map((monthKey) => ({ monthKey, total: monthlyMap[monthKey] }));
+  const refundRows = await Income.find(refundMatch)
+    .select("title amount accountId date")
+    .lean();
 
-  return res.status(200).json({
-    categorySums,
-    subcategorySums,
-    monthlyTotals,
-    total: Object.values(categorySums).reduce((sum, value) => sum + value, 0),
-  });
+  if (!refundRows.length) {
+    if (category && category !== "All") expenseMatch.category = category;
+    if (subcategory && subcategory !== "All") expenseMatch.subcategory = subcategory;
+    const grouped = await Expense.aggregate([
+      { $match: expenseMatch },
+      {
+        $group: {
+          _id: {
+            category: "$category",
+            subcategory: "$subcategory",
+            monthKey: { $dateToString: { format: "%Y-%m", date: "$date", timezone: "UTC" } },
+          },
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+    return res.status(200).json(
+      spendStatsFromEntries(
+        grouped.map((row) => ({
+          category: row._id.category,
+          subcategory: row._id.subcategory,
+          monthKey: row._id.monthKey,
+          total: row.total,
+        }))
+      )
+    );
+  }
+
+  const expenseRows = await Expense.find(expenseMatch)
+    .select("title amount category subcategory accountId date")
+    .lean();
+  let rows = expensesNetOfRefunds(expenseRows, refundRows);
+  if (category && category !== "All") {
+    rows = rows.filter((row) => row.category === category);
+  }
+  if (subcategory && subcategory !== "All") {
+    rows = rows.filter((row) => row.subcategory === subcategory);
+  }
+
+  return res.status(200).json(
+    spendStatsFromEntries(
+      rows.map((row) => {
+        const date = row.date instanceof Date ? row.date : row.date ? new Date(row.date) : null;
+        return {
+          category: row.category,
+          subcategory: row.subcategory,
+          monthKey: date && !Number.isNaN(date.getTime()) ? formatMonthKeyUtc(date) : "",
+          total: row.amount,
+        };
+      })
+    )
+  );
 });
 
 exports.getTransactions = asyncHandler(async (req, res) => {

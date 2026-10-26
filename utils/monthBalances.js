@@ -121,7 +121,6 @@ function carriedForwardOpening(ledgerOpening, gracePaid) {
 module.exports = {
   activityFromMonth,
   rewindBalance,
-  isPriorGraceSettlement,
   priorGracePaid,
   carriedForwardOpening,
 };

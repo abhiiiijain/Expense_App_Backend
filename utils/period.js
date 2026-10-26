@@ -96,9 +96,7 @@ function periodBounds(monthKey, cycle = "calendar") {
 module.exports = {
   parseMonthKey,
   parseDateKey,
-  formatDateKeyUtc,
   formatMonthKeyUtc,
-  resolveCreditCycle,
   getPeriodMonthKey,
   shiftMonthKey,
   inGraceWindow,
