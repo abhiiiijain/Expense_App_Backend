@@ -21,7 +21,17 @@ const {
 } = require("../utils/monthBalances");
 const { getCreditBillPaymentStatus } = require("../utils/creditStatement");
 const { CARD_PAYMENT_SUBCATEGORY, paymentSettlesCreditAccount } = require("../utils/creditCardPayments");
-const { REFUND_SUBCATEGORY, expensesNetOfRefunds } = require("../utils/spendRefunds");
+const { RESALE_INVENTORY_SUBCATEGORY } = require("../utils/consumption");
+const { resaleProfitByIncomeId } = require("../utils/resaleSales");
+const {
+  REFUND_SUBCATEGORY,
+  REFUND_WINDOW_DAYS,
+  attachRemaining,
+} = require("../utils/spendRefunds");
+
+function refundExpenseId(row) {
+  return row.refundOfExpenseId ? String(row.refundOfExpenseId) : "";
+}
 
 const SEARCH_LIMIT = 150;
 
@@ -80,6 +90,7 @@ function spendStatsFromEntries(entries) {
   const categorySums = {};
   const subcategorySums = {};
   const monthlyMap = {};
+  const monthlyCategoryMap = {};
 
   for (const entry of entries) {
     const cat = entry.category || "Other";
@@ -89,7 +100,11 @@ function spendStatsFromEntries(entries) {
     categorySums[cat] = (categorySums[cat] || 0) + total;
     if (!subcategorySums[cat]) subcategorySums[cat] = {};
     subcategorySums[cat][sub] = (subcategorySums[cat][sub] || 0) + total;
-    if (monthKey) monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + total;
+    if (monthKey) {
+      monthlyMap[monthKey] = (monthlyMap[monthKey] || 0) + total;
+      const grain = `${monthKey}\0${cat}\0${sub}`;
+      monthlyCategoryMap[grain] = (monthlyCategoryMap[grain] || 0) + total;
+    }
   }
 
   for (const cat of Object.keys(categorySums)) {
@@ -106,10 +121,23 @@ function spendStatsFromEntries(entries) {
     .sort((a, b) => b.localeCompare(a))
     .map((monthKey) => ({ monthKey, total: monthlyMap[monthKey] }));
 
+  const monthlyCategoryTotals = Object.entries(monthlyCategoryMap)
+    .map(([grain, total]) => {
+      const [monthKey, category, subcategory] = grain.split("\0");
+      return {
+        monthKey,
+        category,
+        subcategory,
+        total: Math.max(0, Number(total) || 0),
+      };
+    })
+    .sort((a, b) => b.monthKey.localeCompare(a.monthKey) || a.category.localeCompare(b.category));
+
   return {
     categorySums,
     subcategorySums,
     monthlyTotals,
+    monthlyCategoryTotals,
     total: Object.values(categorySums).reduce((sum, value) => sum + value, 0),
   };
 }
@@ -174,16 +202,14 @@ exports.getTransactionsSync = asyncHandler(async (req, res) => {
 exports.getSpendingStats = asyncHandler(async (req, res) => {
   const userObjectId = new mongoose.Types.ObjectId(req.userId);
   const accountId = asObjectId(req.query.accountId);
-  const category = String(req.query.category || "").trim();
-  const subcategory = String(req.query.subcategory || "").trim();
-
   const expenseMatch = {
     userId: userObjectId,
-    subcategory: { $ne: CARD_PAYMENT_SUBCATEGORY },
+    subcategory: { $nin: [CARD_PAYMENT_SUBCATEGORY, RESALE_INVENTORY_SUBCATEGORY] },
   };
   const refundMatch = {
     userId: userObjectId,
     subcategory: REFUND_SUBCATEGORY,
+    refundOfExpenseId: { $exists: true, $ne: null },
   };
   if (accountId) {
     expenseMatch.accountId = accountId;
@@ -191,61 +217,63 @@ exports.getSpendingStats = asyncHandler(async (req, res) => {
   }
 
   const refundRows = await Income.find(refundMatch)
-    .select("title amount accountId date")
+    .select("amount refundOfExpenseId")
     .lean();
 
-  if (!refundRows.length) {
-    if (category && category !== "All") expenseMatch.category = category;
-    if (subcategory && subcategory !== "All") expenseMatch.subcategory = subcategory;
-    const grouped = await Expense.aggregate([
-      { $match: expenseMatch },
-      {
-        $group: {
-          _id: {
-            category: "$category",
-            subcategory: "$subcategory",
-            monthKey: { $dateToString: { format: "%Y-%m", date: "$date", timezone: "UTC" } },
-          },
-          total: { $sum: "$amount" },
+  const grouped = await Expense.aggregate([
+    { $match: expenseMatch },
+    {
+      $group: {
+        _id: {
+          category: "$category",
+          subcategory: "$subcategory",
+          monthKey: { $dateToString: { format: "%Y-%m", date: "$date", timezone: "UTC" } },
         },
+        total: { $sum: "$amount" },
       },
-    ]);
-    return res.status(200).json(
-      spendStatsFromEntries(
-        grouped.map((row) => ({
-          category: row._id.category,
-          subcategory: row._id.subcategory,
-          monthKey: row._id.monthKey,
-          total: row.total,
-        }))
-      )
-    );
+    },
+  ]);
+  const entries = grouped.map((row) => ({
+    category: row._id.category,
+    subcategory: row._id.subcategory,
+    monthKey: row._id.monthKey,
+    total: row.total,
+  }));
+
+  const linkedIds = refundRows
+    .map((row) => row.refundOfExpenseId)
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (!linkedIds.length) {
+    return res.status(200).json(spendStatsFromEntries(entries));
   }
 
-  const expenseRows = await Expense.find(expenseMatch)
-    .select("title amount category subcategory accountId date")
+  const linkedExpenses = await Expense.find({
+    userId: userObjectId,
+    _id: { $in: linkedIds },
+  })
+    .select("category subcategory date")
     .lean();
-  let rows = expensesNetOfRefunds(expenseRows, refundRows);
-  if (category && category !== "All") {
-    rows = rows.filter((row) => row.category === category);
+  const byId = Object.fromEntries(linkedExpenses.map((row) => [String(row._id), row]));
+  const next = entries.map((entry) => ({ ...entry }));
+  for (const refund of refundRows) {
+    const expense = byId[refundExpenseId(refund)];
+    if (!expense) continue;
+    const cat = expense.category || "Other";
+    const sub = expense.subcategory || "Uncategorized";
+    const rawDate = expense.date;
+    const date = rawDate instanceof Date ? rawDate : rawDate ? new Date(rawDate) : null;
+    const month = date && !Number.isNaN(date.getTime()) ? formatMonthKeyUtc(date) : "";
+    const amount = Number(refund.amount) || 0;
+    const index = next.findIndex(
+      (row) => row.category === cat && row.subcategory === sub && row.monthKey === month
+    );
+    if (index >= 0) {
+      next[index] = { ...next[index], total: (Number(next[index].total) || 0) - amount };
+    } else {
+      next.push({ category: cat, subcategory: sub, monthKey: month, total: -amount });
+    }
   }
-  if (subcategory && subcategory !== "All") {
-    rows = rows.filter((row) => row.subcategory === subcategory);
-  }
-
-  return res.status(200).json(
-    spendStatsFromEntries(
-      rows.map((row) => {
-        const date = row.date instanceof Date ? row.date : row.date ? new Date(row.date) : null;
-        return {
-          category: row.category,
-          subcategory: row.subcategory,
-          monthKey: date && !Number.isNaN(date.getTime()) ? formatMonthKeyUtc(date) : "",
-          total: row.amount,
-        };
-      })
-    )
-  );
+  return res.status(200).json(spendStatsFromEntries(next));
 });
 
 exports.getTransactions = asyncHandler(async (req, res) => {
@@ -258,7 +286,7 @@ exports.getTransactions = asyncHandler(async (req, res) => {
   const accountObjectId = asObjectId(accountId);
 
   if (q) {
-    const accounts = await Account.find({ userId }).select("name").lean();
+    const accounts = await Account.find({ userId }).select("name type statementDay dueDay").lean();
     const matchingAccountIds = accounts
       .filter((account) => String(account.name || "").toLowerCase().includes(q.toLowerCase()))
       .map((account) => account._id);
@@ -274,12 +302,51 @@ exports.getTransactions = asyncHandler(async (req, res) => {
         { toAccountId: { $in: matchingAccountIds } },
       ];
     }
+
+    const selectedAccount = accountObjectId
+      ? accounts.find((account) => String(account._id) === String(accountObjectId))
+      : null;
+    const accountCycle =
+      selectedAccount?.type === "credit" && selectedAccount.statementDay && selectedAccount.dueDay
+        ? { statementDay: selectedAccount.statementDay, dueDay: selectedAccount.dueDay }
+        : "calendar";
+    if (monthKey && parseMonthKey(monthKey)) {
+      const bounds = periodBounds(monthKey, accountCycle);
+      const dateRange = { $gte: bounds.start, $lt: bounds.endExclusive };
+      expenseFilter.date = dateRange;
+      incomeFilter.date = dateRange;
+      transferFilter.date = dateRange;
+    }
+    if (accountObjectId) {
+      expenseFilter.$and = [
+        ...(expenseFilter.$and || []),
+        {
+          $or: [{ accountId: accountObjectId }, { settlesAccountId: accountObjectId }],
+        },
+      ];
+      incomeFilter.accountId = accountObjectId;
+      transferFilter.$and = [
+        ...(transferFilter.$and || []),
+        {
+          $or: [{ fromAccountId: accountObjectId }, { toAccountId: accountObjectId }],
+        },
+      ];
+    }
+
     const [expenses, incomes, transfers] = await Promise.all([
       Expense.find(expenseFilter).sort({ date: -1, _id: -1 }).limit(SEARCH_LIMIT).lean(),
       Income.find(incomeFilter).sort({ date: -1, _id: -1 }).limit(SEARCH_LIMIT).lean(),
       Transfer.find(transferFilter).sort({ date: -1, _id: -1 }).limit(SEARCH_LIMIT).lean(),
     ]);
-    return res.status(200).json({ expenses, incomes, transfers });
+    return res.status(200).json({
+      expenses,
+      incomes,
+      transfers,
+      truncated:
+        expenses.length === SEARCH_LIMIT ||
+        incomes.length === SEARCH_LIMIT ||
+        transfers.length === SEARCH_LIMIT,
+    });
   }
 
   if (monthKey) {
@@ -289,6 +356,7 @@ exports.getTransactions = asyncHandler(async (req, res) => {
 
     const { accounts, hasTransactions } = await loadAccountsWithBalances(userId);
     const creditAccounts = accounts.filter((account) => account.type === "credit");
+    const creditAccountIds = creditAccounts.map((account) => asObjectId(account.id)).filter(Boolean);
     const selected = accountObjectId
       ? accounts.filter((account) => String(account.id) === String(accountObjectId))
       : accounts;
@@ -300,12 +368,48 @@ exports.getTransactions = asyncHandler(async (req, res) => {
 
     const bounds = periodBounds(monthKey, accountCycle);
     const since = bounds.start;
+    const refundSince = new Date();
+    refundSince.setUTCDate(refundSince.getUTCDate() - REFUND_WINDOW_DAYS);
+    refundSince.setUTCHours(0, 0, 0, 0);
     const userObjectId = new mongoose.Types.ObjectId(userId);
-    const [allExpenses, allIncomes, allTransfers] = await Promise.all([
+    const [allExpenses, allIncomes, allTransfers, resaleLots, resaleSales, refundableExpenses, refundLinks] =
+    await Promise.all([
       Expense.find({ userId: userObjectId, date: { $gte: since } }).sort({ date: -1, _id: -1 }).lean(),
       Income.find({ userId: userObjectId, date: { $gte: since } }).sort({ date: -1, _id: -1 }).lean(),
       Transfer.find({ userId: userObjectId, date: { $gte: since } }).sort({ date: -1, _id: -1 }).lean(),
+      Expense.find({ userId: userObjectId, subcategory: RESALE_INVENTORY_SUBCATEGORY })
+        .select("title amount date accountId category subcategory icon")
+        .sort({ date: -1, _id: -1 })
+        .lean(),
+      Income.find({
+        userId: userObjectId,
+        resaleOfExpenseId: { $exists: true, $ne: null },
+      })
+        .select("amount date resaleOfExpenseId")
+        .sort({ date: 1, _id: 1 })
+        .lean(),
+      Expense.find({
+        userId: userObjectId,
+        accountId: { $in: creditAccountIds },
+        subcategory: { $ne: CARD_PAYMENT_SUBCATEGORY },
+        date: { $gte: refundSince },
+      })
+        .select("title amount date accountId category subcategory icon")
+        .sort({ date: -1, _id: -1 })
+        .lean(),
+      Income.find({
+        userId: userObjectId,
+        subcategory: REFUND_SUBCATEGORY,
+        refundOfExpenseId: { $exists: true, $ne: null },
+      })
+        .select("amount refundOfExpenseId")
+        .lean(),
     ]);
+    const resaleProfitById = resaleProfitByIncomeId(resaleLots, resaleSales);
+    const lotsWithRemaining = attachRemaining(resaleLots, resaleSales, (sale) =>
+      sale.resaleOfExpenseId ? String(sale.resaleOfExpenseId) : ""
+    );
+    const refundableWithRemaining = attachRemaining(refundableExpenses, refundLinks, refundExpenseId);
 
     const accountOpts = { creditAccount, creditAccounts };
     const expenses = allExpenses.filter(
@@ -313,15 +417,21 @@ exports.getTransactions = asyncHandler(async (req, res) => {
         inPeriod(tx, monthKey, accountCycle) &&
         matchesAccount(tx, accountObjectId, { kind: "expense", ...accountOpts })
     );
-    const incomes = allIncomes.filter(
-      (tx) =>
-        inPeriod(tx, monthKey, accountCycle) && matchesAccount(tx, accountObjectId, { kind: "income" })
-    );
+    const incomes = allIncomes
+      .filter(
+        (tx) =>
+          inPeriod(tx, monthKey, accountCycle) && matchesAccount(tx, accountObjectId, { kind: "income" })
+      )
+      .map((tx) => {
+        const profitAmount = resaleProfitById[String(tx._id)];
+        return profitAmount == null ? tx : { ...tx, profitAmount };
+      });
     const transfers = allTransfers.filter(
       (tx) =>
         inPeriod(tx, monthKey, accountCycle) &&
         matchesAccount(tx, accountObjectId, { kind: "transfer" })
     );
+    const expensesWithRemaining = attachRemaining(expenses, refundLinks, refundExpenseId);
 
     const accountsWithPeriod = accounts.map((account) => ({
       ...account,
@@ -355,12 +465,14 @@ exports.getTransactions = asyncHandler(async (req, res) => {
           ?.creditBill || null
       : null;
 
-    return res.status(200).json({
+  return res.status(200).json({
       accounts: accountsWithPeriod,
       hasTransactions,
-      expenses,
-      incomes,
-      transfers,
+    expenses: expensesWithRemaining,
+    incomes,
+    transfers,
+      resaleLots: lotsWithRemaining,
+      refundableExpenses: refundableWithRemaining,
       monthStartOpening,
       statementOpening,
       monthEndBalance,
@@ -374,21 +486,26 @@ exports.getTransactions = asyncHandler(async (req, res) => {
     endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
     const dateFilter = { $gte: from, $lt: endExclusive };
     const accountMatch = accountObjectId ? { accountId: accountObjectId } : {};
-    const transferAccount = accountObjectId
-      ? { $or: [{ fromAccountId: accountObjectId }, { toAccountId: accountObjectId }] }
-      : {};
-    const [expenses, incomes, transfers] = await Promise.all([
-      Expense.find({ userId: userObjectId, date: dateFilter, ...accountMatch })
-        .sort({ date: -1, _id: -1 })
-        .lean(),
-      Income.find({ userId: userObjectId, date: dateFilter, ...accountMatch })
-        .sort({ date: -1, _id: -1 })
-        .lean(),
-      Transfer.find({ userId: userObjectId, date: dateFilter, ...transferAccount })
-        .sort({ date: -1, _id: -1 })
-        .lean(),
-    ]);
-    return res.status(200).json({ expenses, incomes, transfers });
+    const expenses = await Expense.find({
+      userId: userObjectId,
+      date: dateFilter,
+      ...accountMatch,
+    })
+      .sort({ date: -1, _id: -1 })
+      .lean();
+    const expenseIds = expenses.map((row) => row._id);
+    const refundLinks = expenseIds.length
+      ? await Income.find({
+          userId: userObjectId,
+          subcategory: REFUND_SUBCATEGORY,
+          refundOfExpenseId: { $in: expenseIds },
+        })
+          .select("amount refundOfExpenseId")
+          .lean()
+      : [];
+    return res.status(200).json({
+      expenses: attachRemaining(expenses, refundLinks, refundExpenseId),
+    });
   }
 
   return res.status(400).json({ message: "monthKey, q, or from and to are required" });

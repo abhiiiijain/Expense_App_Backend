@@ -5,6 +5,10 @@ const { editWindowCutoff, editWindowErrorMessage } = require("../utils/editWindo
 const { assertAccountOwned } = require("../utils/accountAccess");
 const Account = require("../models/Account");
 const { CARD_PAYMENT_SUBCATEGORY } = require("../utils/creditCardPayments");
+const { RESALE_INVENTORY_SUBCATEGORY } = require("../utils/consumption");
+const { RESALE_INCOME_SUBCATEGORY } = require("../utils/resaleSales");
+const { REFUND_SUBCATEGORY } = require("../utils/spendRefunds");
+const { findRefundableExpense, assertRefundFits } = require("../utils/refundLinkGuard");
 const { bumpDataVersion } = require("../utils/dataVersion");
 const mongoose = require("mongoose");
 
@@ -38,6 +42,48 @@ function ownerFilter(req, id) {
   };
 }
 
+async function withResaleLink(userId, data) {
+  if (data.subcategory !== RESALE_INCOME_SUBCATEGORY) {
+    const next = { ...data };
+    delete next.resaleOfExpenseId;
+    return next;
+  }
+  if (!data.resaleOfExpenseId) {
+    throw new HttpError(400, "Select which stock this resale is from");
+  }
+  const Expense = require("../models/Expense");
+  const lot = await Expense.exists({
+    _id: data.resaleOfExpenseId,
+    userId,
+    subcategory: RESALE_INVENTORY_SUBCATEGORY,
+  });
+  if (!lot) {
+    throw new HttpError(400, "Resale stock not found");
+  }
+  return data;
+}
+
+async function withRefundLink(userId, data, { excludeIncomeId } = {}) {
+  if (data.subcategory !== REFUND_SUBCATEGORY) {
+    const next = { ...data };
+    delete next.refundOfExpenseId;
+    return next;
+  }
+  if (!data.refundOfExpenseId) {
+    throw new HttpError(400, "Select which expense this refunds");
+  }
+  const original = await findRefundableExpense(userId, data.refundOfExpenseId);
+  if (!original) {
+    throw new HttpError(400, "Original expense not found");
+  }
+  await assertRefundFits(userId, original, data.amount, excludeIncomeId);
+  return data;
+}
+
+async function withIncomeLinks(userId, data, options) {
+  return withRefundLink(userId, await withResaleLink(userId, data), options);
+}
+
 function createTransactionController(Model, allowedCategories, subcategoryMap) {
   return {
     add: asyncHandler(async (req, res) => {
@@ -54,8 +100,10 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
 
       await assertAccountOwned(req.userId, result.data.accountId);
       const payload = await withSettlesAccount(req.userId, result.data);
+      const recordPayload =
+        Model.modelName === "Income" ? await withIncomeLinks(req.userId, payload) : payload;
 
-      const record = await Model.create(payload);
+      const record = await Model.create(recordPayload);
       await bumpDataVersion(req.userId);
       return res.status(201).json(record);
     }),
@@ -77,13 +125,35 @@ function createTransactionController(Model, allowedCategories, subcategoryMap) {
 
       await assertAccountOwned(req.userId, result.data.accountId);
       const payload = await withSettlesAccount(req.userId, result.data);
-      const { title, amount, category, subcategory, icon, date, accountId, settlesAccountId } =
-        payload;
+      const recordPayload =
+        Model.modelName === "Income"
+          ? await withIncomeLinks(req.userId, payload, { excludeIncomeId: id })
+          : payload;
+      const {
+        title,
+        amount,
+        category,
+        subcategory,
+        icon,
+        date,
+        accountId,
+        settlesAccountId,
+        refundOfExpenseId,
+        resaleOfExpenseId,
+      } = recordPayload;
       const update = {
         $set: { title, amount, category, subcategory, icon, date, accountId },
       };
       if (settlesAccountId) update.$set.settlesAccountId = settlesAccountId;
-      else update.$unset = { settlesAccountId: 1 };
+      else update.$unset = { ...(update.$unset || {}), settlesAccountId: 1 };
+      if (refundOfExpenseId) update.$set.refundOfExpenseId = refundOfExpenseId;
+      else if (Model.modelName === "Income") {
+        update.$unset = { ...(update.$unset || {}), refundOfExpenseId: 1 };
+      }
+      if (resaleOfExpenseId) update.$set.resaleOfExpenseId = resaleOfExpenseId;
+      else if (Model.modelName === "Income") {
+        update.$unset = { ...(update.$unset || {}), resaleOfExpenseId: 1 };
+      }
 
       const record = await Model.findOneAndUpdate(
         {

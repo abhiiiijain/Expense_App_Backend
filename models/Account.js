@@ -23,6 +23,10 @@ const AccountSchema = new mongoose.Schema(
     openingBalance: {
       type: Number,
       default: 0,
+    },
+    /** Credit card limit — not available cash. */
+    creditLimit: {
+      type: Number,
       min: 0,
     },
     /** Credit card statement generation day (1–28). */

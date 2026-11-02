@@ -113,6 +113,7 @@ async function loadAccountsWithBalances(userId) {
       openingBalance: account.openingBalance,
       statementDay: account.statementDay ?? null,
       dueDay: account.dueDay ?? null,
+      creditLimit: account.creditLimit ?? null,
       isDefault: account.isDefault,
       balance,
     };
@@ -132,7 +133,9 @@ exports.listAccounts = asyncHandler(async (req, res) => {
 exports.createAccount = asyncHandler(async (req, res) => {
   const name = String(req.body.name || "").trim();
   const type = Account.ACCOUNT_TYPES.includes(req.body.type) ? req.body.type : "bank";
-  const openingResult = parseOpeningBalance(req.body.openingBalance ?? 0);
+  const openingResult = parseOpeningBalance(req.body.openingBalance ?? 0, {
+    allowNegative: type === "credit",
+  });
 
   if (!name) {
     throw new HttpError(400, "Account name is required");
@@ -146,6 +149,15 @@ exports.createAccount = asyncHandler(async (req, res) => {
     throw new HttpError(400, cycle.error);
   }
 
+  let creditLimit;
+  if (type === "credit" && req.body.creditLimit !== undefined && req.body.creditLimit !== "") {
+    const limit = parseOpeningBalance(req.body.creditLimit);
+    if (limit.error || limit.amount === null) {
+      throw new HttpError(400, "Credit limit must be a valid amount");
+    }
+    creditLimit = limit.amount;
+  }
+
   try {
     const account = await Account.create({
       userId: req.userId,
@@ -154,7 +166,11 @@ exports.createAccount = asyncHandler(async (req, res) => {
       openingBalance: openingResult.amount ?? 0,
       isDefault: false,
       ...(type === "credit"
-        ? { statementDay: cycle.statementDay, dueDay: cycle.dueDay }
+        ? {
+            statementDay: cycle.statementDay,
+            dueDay: cycle.dueDay,
+            ...(creditLimit != null ? { creditLimit } : {}),
+          }
         : {}),
     });
     await bumpDataVersion(req.userId);
@@ -209,13 +225,28 @@ exports.updateAccount = asyncHandler(async (req, res) => {
     account.dueDay = cycle.dueDay;
   }
   if (req.body.openingBalance !== undefined) {
-    const openingResult = parseOpeningBalance(req.body.openingBalance);
+    const openingResult = parseOpeningBalance(req.body.openingBalance, {
+      allowNegative: account.type === "credit",
+    });
     if (openingResult.error || openingResult.amount === null) {
       throw new HttpError(400, openingResult.error || "Invalid opening balance");
     }
     account.openingBalance = openingResult.amount;
     if (account.isDefault) {
       await User.updateOne({ _id: req.userId }, { $set: { openingBalanceSet: true } });
+    }
+  }
+  if (req.body.creditLimit !== undefined) {
+    if (account.type !== "credit") {
+      account.creditLimit = undefined;
+    } else if (req.body.creditLimit === "" || req.body.creditLimit === null) {
+      account.creditLimit = undefined;
+    } else {
+      const limit = parseOpeningBalance(req.body.creditLimit);
+      if (limit.error || limit.amount === null) {
+        throw new HttpError(400, "Credit limit must be a valid amount");
+      }
+      account.creditLimit = limit.amount;
     }
   }
   if (req.body.isDefault === true) {
@@ -230,6 +261,11 @@ exports.updateAccount = asyncHandler(async (req, res) => {
       throw new HttpError(409, "An account with that name already exists");
     }
     throw error;
+  }
+
+  if (account.type === "credit" && (req.body.creditLimit === "" || req.body.creditLimit === null)) {
+    await Account.updateOne({ _id: account._id }, { $unset: { creditLimit: 1 } });
+    account.creditLimit = undefined;
   }
 
   if (leaveCredit && hadCycle) {

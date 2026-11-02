@@ -38,6 +38,57 @@ exports.createTransfer = asyncHandler(async (req, res) => {
   return res.status(201).json(transfer);
 });
 
+exports.updateTransfer = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new HttpError(400, "Invalid transfer id");
+  }
+
+  const amount = roundMoney(req.body.amount);
+  if (amount === null || amount <= 0) {
+    throw new HttpError(400, "Enter a valid transfer amount");
+  }
+
+  const [from, to] = await assertAccountsOwned(
+    req.userId,
+    [req.body.fromAccountId, req.body.toAccountId],
+    { requireDistinct: true, select: "_id name" }
+  );
+
+  const note = String(req.body.note || "").trim();
+  const dateResult = parseTransactionDate(req.body.date);
+  if (dateResult.error) {
+    throw new HttpError(400, dateResult.error);
+  }
+
+  const transfer = await Transfer.findOneAndUpdate(
+    {
+      _id: id,
+      userId: req.userId,
+      createdAt: { $gte: editWindowCutoff() },
+    },
+    {
+      $set: {
+        fromAccountId: from._id,
+        toAccountId: to._id,
+        amount,
+        note,
+        date: dateResult.date,
+      },
+    },
+    { new: true }
+  );
+
+  if (!transfer) {
+    const exists = await Transfer.exists({ _id: id, userId: req.userId });
+    if (!exists) throw new HttpError(404, "Transfer not found");
+    throw new HttpError(403, editWindowErrorMessage("edited"));
+  }
+
+  await bumpDataVersion(req.userId);
+  return res.status(200).json(transfer);
+});
+
 exports.deleteTransfer = asyncHandler(async (req, res) => {
   const { id } = req.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {

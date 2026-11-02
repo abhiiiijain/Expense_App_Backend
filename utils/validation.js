@@ -39,7 +39,18 @@ function parseTransactionDate(value) {
 }
 
 function validateTransactionBody(body, userId, allowedCategories, subcategoryMap) {
-  const { title, amount, category, subcategory, icon, date, accountId, settlesAccountId } = body;
+  const {
+    title,
+    amount,
+    category,
+    subcategory,
+    icon,
+    date,
+    accountId,
+    settlesAccountId,
+    refundOfExpenseId,
+    resaleOfExpenseId,
+  } = body;
 
   if (!userId || !title || !category || !subcategory || !icon || !accountId) {
     return { error: "All fields are required!" };
@@ -69,7 +80,7 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
   }
 
   const allowedSubs = subcategoryMap?.[category];
-  if (allowedSubs && !allowedSubs.includes(subcategory)) {
+  if (allowedSubs && !allowedSubs.includes(trimmedSubcategory)) {
     return { error: "Invalid subcategory" };
   }
 
@@ -92,6 +103,15 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
     settles = settlesAccountId;
   }
 
+  const refundOf =
+    refundOfExpenseId && mongoose.Types.ObjectId.isValid(refundOfExpenseId)
+      ? refundOfExpenseId
+      : undefined;
+  const resaleOf =
+    resaleOfExpenseId && mongoose.Types.ObjectId.isValid(resaleOfExpenseId)
+      ? resaleOfExpenseId
+      : undefined;
+
   return {
     data: {
       userId,
@@ -103,6 +123,8 @@ function validateTransactionBody(body, userId, allowedCategories, subcategoryMap
       subcategory: trimmedSubcategory,
       icon,
       ...(settles ? { settlesAccountId: settles } : {}),
+      ...(refundOf ? { refundOfExpenseId: refundOf } : {}),
+      ...(resaleOf ? { resaleOfExpenseId: resaleOf } : {}),
     },
   };
 }
@@ -129,13 +151,13 @@ function parseCreditCycle(body, { required = false } = {}) {
   return { statementDay: statement.day, dueDay: due.day };
 }
 
-function parseOpeningBalance(value) {
+function parseOpeningBalance(value, { allowNegative = false } = {}) {
   if (value === undefined || value === null || value === "") {
     return { amount: null };
   }
 
   const rounded = roundMoney(value);
-  if (rounded === null || rounded < 0) {
+  if (rounded === null || (!allowNegative && rounded < 0)) {
     return { error: "Opening balance must be a valid amount" };
   }
 

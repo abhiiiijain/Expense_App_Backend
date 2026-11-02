@@ -89,7 +89,10 @@ function periodBounds(monthKey, cycle = "calendar") {
   const start = utcDay(year, month - 2, spec.statementDay + 1);
   const statement = utcDay(year, month - 1, spec.statementDay);
   const endExclusive = utcDay(year, month - 1, spec.statementDay + 1);
-  const due = utcDay(year, month, spec.dueDay);
+  const due =
+    spec.dueDay > spec.statementDay
+      ? utcDay(year, month - 1, spec.dueDay)
+      : utcDay(year, month, spec.dueDay);
   return { start, endExclusive, statement, due };
 }
 

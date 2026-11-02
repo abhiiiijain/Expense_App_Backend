@@ -60,6 +60,7 @@
       "Footwear",
       "Electronics",
       "Phone & Accessories",
+      "Resale inventory",
       "Online Shopping",
       "Delivery",
       "Home & Decor"
@@ -124,7 +125,7 @@
   },
   "incomeSubcategories": {
     "Salary": ["Monthly Salary", "Bonus", "Overtime"],
-    "Business & Freelance": ["Freelance", "Client Payment", "Commission", "Orders", "Business Income"],
+    "Business & Freelance": ["Freelance", "Client Payment", "Commission", "Orders", "Business Income", "Resale"],
     "Investments": ["Dividends", "Interest", "Capital Gains"],
     "Refunds & Cashback": ["Refund", "Cashback", "Reimbursement"],
     "Gifts & Transfers": ["Gift Received", "Family Transfer"],

@@ -1,71 +1,53 @@
 const REFUND_SUBCATEGORY = "Refund";
-
-function isSpendRefund(tx) {
-  return tx?.subcategory === REFUND_SUBCATEGORY;
-}
+const REFUND_WINDOW_DAYS = 15;
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-function titleKey(title) {
-  return String(title || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+refunds?$/i, "")
-    .replace(/\s+/g, " ");
+function idOf(tx) {
+  return String(tx?._id || tx?.id || "");
 }
 
-function matchesRefund(expense, refund) {
-  const refundAccount = String(refund?.accountId || "");
-  return (
-    titleKey(expense?.title) === titleKey(refund?.title) &&
-    (!refundAccount || String(expense?.accountId) === refundAccount)
-  );
+function linkedExpenseId(refund) {
+  return refund?.refundOfExpenseId ? String(refund.refundOfExpenseId) : "";
 }
 
-function refundsAsSpendAdjustments(refunds, expenses) {
-  return (refunds || []).map((refund) => {
-    const match = (expenses || []).find((expense) => matchesRefund(expense, refund));
-    return {
-      ...refund,
-      amount: -(Number(refund.amount) || 0),
-      category: match?.category || "Other",
-      subcategory: match?.subcategory || "Uncategorized",
-    };
-  });
+function refundRemaining(expense, refunds, excludeIncomeId = "") {
+  const skip = excludeIncomeId ? String(excludeIncomeId) : "";
+  const recovered = (refunds || [])
+    .filter(
+      (refund) =>
+        linkedExpenseId(refund) === idOf(expense) && (!skip || idOf(refund) !== skip)
+    )
+    .reduce((sum, refund) => sum + (Number(refund.amount) || 0), 0);
+  return roundMoney(Math.max(0, (Number(expense.amount) || 0) - recovered));
 }
 
-function expensesNetOfRefunds(expenses, refunds, matchAgainst = expenses) {
-  const next = (expenses || []).map((expense) => ({
-    ...expense,
-    amount: Number(expense.amount) || 0,
-  }));
-  const leftovers = [];
+function refundCapMessage(remaining) {
+  if (remaining <= 0.005) return "This purchase is already fully refunded";
+  return `Refund can't be more than ₹${roundMoney(remaining).toFixed(2)} left on this purchase`;
+}
 
-  for (const refund of (refunds || []).filter(isSpendRefund)) {
-    let remaining = Number(refund.amount) || 0;
-    const matches = next
-      .map((expense, index) => ({ expense, index }))
-      .filter(({ expense }) => expense.amount > 0.005 && matchesRefund(expense, refund))
-      .sort((a, b) => b.expense.amount - a.expense.amount);
-
-    for (const { index } of matches) {
-      if (remaining <= 0.005) break;
-      const take = Math.min(next[index].amount, remaining);
-      next[index] = { ...next[index], amount: roundMoney(next[index].amount - take) };
-      remaining = roundMoney(remaining - take);
-    }
-    if (remaining > 0.005) leftovers.push({ ...refund, amount: remaining });
+function attachRemaining(records, links, getLinkedId) {
+  const recovered = {};
+  for (const link of links || []) {
+    const id = getLinkedId(link);
+    if (!id) continue;
+    recovered[id] = (recovered[id] || 0) + (Number(link.amount) || 0);
   }
-
-  return [
-    ...next.filter((expense) => expense.amount > 0.005),
-    ...refundsAsSpendAdjustments(leftovers, matchAgainst),
-  ];
+  return (records || []).map((record) => ({
+    ...record,
+    remaining: roundMoney(
+      Math.max(0, (Number(record.amount) || 0) - (recovered[idOf(record)] || 0))
+    ),
+  }));
 }
 
 module.exports = {
   REFUND_SUBCATEGORY,
-  expensesNetOfRefunds,
+  REFUND_WINDOW_DAYS,
+  refundRemaining,
+  refundCapMessage,
+  attachRemaining,
 };
