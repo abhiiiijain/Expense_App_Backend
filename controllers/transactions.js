@@ -28,6 +28,7 @@ const {
   REFUND_WINDOW_DAYS,
   attachRemaining,
 } = require("../utils/spendRefunds");
+const { REFUNDABLE_EXPENSE_FILTER } = require("../utils/refundLinkGuard");
 
 function refundExpenseId(row) {
   return row.refundOfExpenseId ? String(row.refundOfExpenseId) : "";
@@ -391,7 +392,7 @@ exports.getTransactions = asyncHandler(async (req, res) => {
       Expense.find({
         userId: userObjectId,
         accountId: { $in: creditAccountIds },
-        subcategory: { $ne: CARD_PAYMENT_SUBCATEGORY },
+        ...REFUNDABLE_EXPENSE_FILTER,
         date: { $gte: refundSince },
       })
         .select("title amount date accountId category subcategory icon")
