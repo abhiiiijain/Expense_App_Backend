@@ -1,5 +1,5 @@
 const REFUND_SUBCATEGORY = "Refund";
-const REFUND_WINDOW_DAYS = 15;
+const REFUND_WINDOW_DAYS = 30;
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
