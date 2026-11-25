@@ -7,6 +7,7 @@ function registerApiRoutes(app) {
   app.use(api, require("./auth"));
   app.use(api, require("./accounts"));
   app.use(api, require("./budgets"));
+  app.use(api, require("./recurring"));
   app.use(api, require("./transfers"));
   app.use(api, require("./expenses"));
   app.use(api, require("./incomes"));

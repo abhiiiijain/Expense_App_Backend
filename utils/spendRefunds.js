@@ -13,13 +13,9 @@ function linkedExpenseId(refund) {
   return refund?.refundOfExpenseId ? String(refund.refundOfExpenseId) : "";
 }
 
-function refundRemaining(expense, refunds, excludeIncomeId = "") {
-  const skip = excludeIncomeId ? String(excludeIncomeId) : "";
+function refundRemaining(expense, refunds) {
   const recovered = (refunds || [])
-    .filter(
-      (refund) =>
-        linkedExpenseId(refund) === idOf(expense) && (!skip || idOf(refund) !== skip)
-    )
+    .filter((refund) => linkedExpenseId(refund) === idOf(expense))
     .reduce((sum, refund) => sum + (Number(refund.amount) || 0), 0);
   return roundMoney(Math.max(0, (Number(expense.amount) || 0) - recovered));
 }

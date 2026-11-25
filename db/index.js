@@ -32,12 +32,14 @@ async function connectDB() {
           const Account = require("../models/Account");
           const Transfer = require("../models/Transfer");
           const Budget = require("../models/Budget");
+          const RecurringExpense = require("../models/RecurringExpense");
           await Promise.all([
             Expense.syncIndexes(),
             Income.syncIndexes(),
             User.syncIndexes(),
             Account.syncIndexes(),
             Budget.syncIndexes(),
+            RecurringExpense.syncIndexes(),
             Transfer.syncIndexes(),
           ]);
           logger.info("db.indexes_synced");
